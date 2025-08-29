@@ -132,9 +132,9 @@ void setup() {
   controls.begin();
   conveyor.begin();
   // початкове положення клапанів 
-  valve1.on();
-  valve2.off();
-  valve3.on();
+  //valve1.on();
+  //valve2.off();
+  //valve3.on();
   Serial.println("Setup complete");
 }
 
@@ -165,6 +165,13 @@ void loop() {
     // --- Кнопка зміни режиму розливу ---
     if (controls.modeChanged()) {
         dispenseMode = !dispenseMode;
+        if (dispenseMode) {
+            Serial.println("Dispense mode: All");
+            
+        } else {
+            Serial.println("Dispense mode: Single");
+
+        }
         // ...індикація...
     }
 
