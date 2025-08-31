@@ -2,45 +2,20 @@
 #include <Arduino.h>
 #include "pinout.h"
 
-// Клас для роботи з датчиками
+// Клас для роботи з датчиками (тільки утиліти, без дублювання ініціалізації)
 class SensorUtils {
 public:
-    // Ініціалізація датчиків
-    static void initSensors() {
-        pinMode(sensor_1, INPUT_PULLUP);
-        pinMode(sensor_2, INPUT_PULLUP);
-        pinMode(sensor_3, INPUT_PULLUP);
-        Serial.println("Sensors initialized:");
-        Serial.println("- Sensor 1 (Paint dispense): Pin " + String(sensor_1));
-        Serial.println("- Sensor 2 (Cap press): Pin " + String(sensor_2));
-        Serial.println("- Sensor 3 (Spice shift): Pin " + String(sensor_3));
-    }
+    // Видаляємо дублювання ініціалізації - це робить клас Controls
     
-    // Читання стану датчиків
-    static bool readSensor1() {
-        return !digitalRead(sensor_1); // Інвертуємо через INPUT_PULLUP
-    }
-    
-    static bool readSensor2() {
-        return !digitalRead(sensor_2);
-    }
-    
-    static bool readSensor3() {
-        return !digitalRead(sensor_3);
-    }
-    
-    // Отримання інформації про всі датчики
-    static void getSensorStatus(bool& s1, bool& s2, bool& s3) {
-        s1 = readSensor1();
-        s2 = readSensor2();
-        s3 = readSensor3();
+    // Отримання інформації про всі датчики (використовуємо зовнішні значення)
+    static void getSensorStatus(bool s1, bool s2, bool s3, bool& out_s1, bool& out_s2, bool& out_s3) {
+        out_s1 = s1;
+        out_s2 = s2;
+        out_s3 = s3;
     }
     
     // Виведення статусу датчиків в Serial
-    static void printSensorStatus() {
-        bool s1, s2, s3;
-        getSensorStatus(s1, s2, s3);
-        
+    static void printSensorStatus(bool s1, bool s2, bool s3) {
         Serial.print("Sensors: S1=");
         Serial.print(s1 ? "ON" : "OFF");
         Serial.print(" S2=");
@@ -50,10 +25,7 @@ public:
     }
     
     // Детальна відладка датчиків
-    static void debugSensors() {
-        bool s1, s2, s3;
-        getSensorStatus(s1, s2, s3);
-        
+    static void debugSensors(bool s1, bool s2, bool s3) {
         Serial.println("=== SENSOR DEBUG ===");
         Serial.print("Sensor 1 (Paint dispense): ");
         Serial.println(s1 ? "ACTIVE" : "INACTIVE");
@@ -64,54 +36,49 @@ public:
         Serial.println("===================");
     }
     
-    // Чекання спрацювання конкретного датчика
-    static bool waitForSensor(uint8_t sensorPin, unsigned long timeout = 30000) {
+    // Чекання спрацювання конкретного датчика (використовуємо зовнішню функцію читання)
+    static bool waitForSensor(bool (*readSensor)(), unsigned long timeout = 30000) {
         unsigned long startTime = millis();
         
         while (millis() - startTime < timeout) {
-            bool sensorActive = !digitalRead(sensorPin);
+            bool sensorActive = readSensor();
             if (sensorActive) {
-                Serial.print("Sensor on pin ");
-                Serial.print(sensorPin);
-                Serial.println(" triggered!");
+                Serial.println("Sensor triggered!");
                 return true;
             }
             delay(10);
         }
         
-        Serial.print("Timeout waiting for sensor on pin ");
-        Serial.println(sensorPin);
+        Serial.println("Timeout waiting for sensor");
         return false;
     }
     
     // Чекання вимкнення конкретного датчика
-    static bool waitForSensorOff(uint8_t sensorPin, unsigned long timeout = 30000) {
+    static bool waitForSensorOff(bool (*readSensor)(), unsigned long timeout = 30000) {
         unsigned long startTime = millis();
         
         while (millis() - startTime < timeout) {
-            bool sensorActive = !digitalRead(sensorPin);
+            bool sensorActive = readSensor();
             if (!sensorActive) {
-                Serial.print("Sensor on pin ");
-                Serial.print(sensorPin);
-                Serial.println(" released!");
+                Serial.println("Sensor released!");
                 return true;
             }
             delay(10);
         }
         
-        Serial.print("Timeout waiting for sensor OFF on pin ");
-        Serial.println(sensorPin);
+        Serial.println("Timeout waiting for sensor OFF");
         return false;
     }
     
-    // Тестування всіх датчиків
-    static void testAllSensors() {
+    // Тестування всіх датчиків (використовуємо зовнішні функції читання)
+    static void testAllSensors(bool (*readSensor1)(), bool (*readSensor2)(), bool (*readSensor3)()) {
         Serial.println("=== SENSOR TEST ===");
         Serial.println("Testing all sensors...");
         
         for (int i = 0; i < 10; i++) {
-            bool s1, s2, s3;
-            getSensorStatus(s1, s2, s3);
+            bool s1 = readSensor1();
+            bool s2 = readSensor2();
+            bool s3 = readSensor3();
             
             Serial.print("Test ");
             Serial.print(i + 1);

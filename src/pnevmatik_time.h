@@ -1,87 +1,109 @@
-#ifndef PNEUMATIK_TIME_H
-#define PNEUMATIK_TIME_H
+#ifndef PNEVMATIK_TIME_H
+#define PNEVMATIK_TIME_H
+
 // -------------------------
 // ПНЕВМАТИЧНІ ОПЕРАЦІЇ (часи в мс)
 // -------------------------
 
-// 1. Видача спайок (№1)
-#define SPICE_OUT_OPEN_TIME      120   // відкривання циліндра для видачі спайок
-#define SPICE_OUT_HOLD_TIME      300   // утримання відкритим для видачі спайок
-#define SPICE_OUT_DELAY          100   // затримка після видачі спайок
+// === 1. ВИДАЧА СПАЙОК (Valve 1) ===
+#define SPICE_OUT_HOLD_TIME      2000  // утримання відкритим для видачі спайок (2 сек)
 
-// 2. Відкриття крану резервуару фарби (№2)
-#define PAINT_VALVE_OPEN_TIME    100   // відкривання крану резервуару фарби
-#define PAINT_VALVE_HOLD_TIME    500   // утримання відкритим для наливу фарби
-#define PAINT_VALVE_DELAY        100   // затримка після відкриття
+// === 2. ЦИКЛ РОЗЛИВУ ФАРБИ ===
+// Відкриття крану резервуару фарби (Valve 2)
+#define PAINT_VALVE_HOLD_TIME    1000  // утримання відкритим для наливу фарби (1 сек)
 
-// 3. Забір фарби поршнем (№3)
-#define PAINT_PISTON_IN_OPEN_TIME   150   // рух поршня для забору фарби
-#define PAINT_PISTON_IN_HOLD_TIME   400   // утримання поршня в положенні забору
-#define PAINT_PISTON_IN_DELAY       100   // затримка після забору
+// Забір фарби поршнем (Valve 3)
+#define PAINT_PISTON_IN_HOLD_TIME   800   // утримання поршня в положенні забору
 
-// 4. Закриття крану резервуару фарби (№2)
-#define PAINT_VALVE_CLOSE_TIME   100   // закриття крану резервуару фарби
-#define PAINT_VALVE_CLOSE_HOLD   300   // утримання закритим
-#define PAINT_VALVE_CLOSE_DELAY  100   // затримка після закриття
+// Видача фарби поршнем (Valve 3)
+#define PAINT_PISTON_OUT_HOLD_TIME  1000  // утримання поршня в положенні видачі
 
-// 5. Видача фарби поршнем (№3)
-#define PAINT_PISTON_OUT_OPEN_TIME  150   // рух поршня для видачі фарби
-#define PAINT_PISTON_OUT_HOLD_TIME  400   // утримання поршня в положенні видачі
-#define PAINT_PISTON_OUT_DELAY      100   // затримка після видачі
+// === 3. ЦИКЛ ЗАКРИВАННЯ КРИШОК ===
+// Завертання кришок баночок (Valve 4)
+#define TWIST_CAP_HOLD_TIME      800   // утримання в положенні завертання
 
-// 6. Завертання кришок баночок (№4)
-#define TWIST_CAP_OPEN_TIME      150   // відкривання циліндра для завертання кришок
-#define TWIST_CAP_HOLD_TIME      200   // утримання в положенні завертання
-#define TWIST_CAP_DELAY          100   // затримка після завертання
+// Закривання кришок баночок (Valve 5)
+#define CLOSE_CAP_HOLD_TIME      1000  // утримання в положенні закривання
 
-// 7. Закривання кришок баночок (№5)
-#define CLOSE_CAP_OPEN_TIME      600   // відкривання циліндра для закривання кришок
-#define CLOSE_CAP_HOLD_TIME      300   // утримання в положенні закривання
-#define CLOSE_CAP_DELAY          100   // затримка після закривання
+// === 4. ЗСУВАННЯ СПАЙКИ ДЛЯ ПАКУВАННЯ ===
+// Зсування спайки для пакування (Valve 6)
+#define SPICE_SHIFT_HOLD_TIME    500   // утримання в положенні зсування
 
-// 8. Зсування спайки для пакування (№6)
-#define SPICE_SHIFT_OPEN_TIME    200   // відкривання циліндра для зсування спайки
-#define SPICE_SHIFT_HOLD_TIME    300   // утримання в положенні зсування
-#define SPICE_SHIFT_DELAY        100   // затримка після зсування
+// === 5. ЦИКЛ ПАКУВАННЯ ===
+// Переміщення платформи з присосками (Valve 7)
+#define PLATFORM_MOVE_HOLD_TIME  600   // утримання платформи в положенні
 
-// 9. Переміщення платформи з присосками (№7)
-#define PLATFORM_MOVE_OPEN_TIME  250   // переміщення платформи з присосками
-#define PLATFORM_MOVE_HOLD_TIME  400   // утримання платформи в положенні
-#define PLATFORM_MOVE_DELAY      100   // затримка після переміщення
+// Опускання/піднімання платформи з присосками (Valve 8)
+#define PLATFORM_LIFT_HOLD_TIME  500   // утримання платформи в положенні
 
-// 10. Опускання/піднімання платформи з присосками (№8)
-#define PLATFORM_LIFT_OPEN_TIME  200   // опускання/піднімання платформи з присосками
-#define PLATFORM_LIFT_HOLD_TIME  300   // утримання платформи в положенні
-#define PLATFORM_LIFT_DELAY      100   // затримка після операції
+// Засування спайок в пакет (Valve 9)
+#define SPICE_PUSH_HOLD_TIME     600   // утримання циліндра в положенні засування
 
-// 11. Засування спайок в пакет (№9)
-#define SPICE_PUSH_OPEN_TIME     250   // засування спайок в пакет
-#define SPICE_PUSH_HOLD_TIME     400   // утримання циліндра в положенні засування
-#define SPICE_PUSH_DELAY         100   // затримка після засування
+// Утримання спайок і пакета на платформі (Valve 10)
+#define HOLD_SPICE_HOLD_TIME     500   // утримання в положенні
 
-// 12. Утримання спайок і пакета на платформі (№10)
-#define HOLD_SPICE_OPEN_TIME     150   // висування утримання спайок і пакета
-#define HOLD_SPICE_HOLD_TIME     300   // утримання в положенні
-#define HOLD_SPICE_DELAY         100   // затримка після утримання
+// Рух сопла для вакуумування/запайки (Valve 11)
+#define NOZZLE_MOVE_HOLD_TIME    500   // утримання сопла в положенні
 
-// 13. Рух сопла для вакуумування/запайки (№11)
-#define NOZZLE_MOVE_OPEN_TIME    200   // рух сопла до пакету
-#define NOZZLE_MOVE_HOLD_TIME    300   // утримання сопла в положенні
-#define NOZZLE_MOVE_DELAY        100   // затримка після руху
+// Опускання/піднімання силіконової планки для запайки (Valve 12)
+#define SILICONE_BAR_HOLD_TIME   800   // утримання планки в положенні
 
-// 14. Опускання/піднімання силіконової планки для запайки (№12)
-#define SILICONE_BAR_OPEN_TIME   200   // опускання/піднімання силіконової планки
-#define SILICONE_BAR_HOLD_TIME   400   // утримання планки в положенні
-#define SILICONE_BAR_DELAY       100   // затримка після операції
+// Скидання готового пакету (Valve 13)
+#define PACKAGE_DROP_HOLD_TIME   400   // утримання в положенні скидання
 
-// 15. Скидання готового пакету (№13)
-#define PACKAGE_DROP_OPEN_TIME   150   // відкривання циліндра для скидання пакету
-#define PACKAGE_DROP_HOLD_TIME   300   // утримання в положенні скидання
-#define PACKAGE_DROP_DELAY       100   // затримка після скидання
+// Охолодження ленти після запайки (Valve 14)
+#define TAPE_COOL_HOLD_TIME      1000  // утримання в положенні охолодження
 
-// 16. Охолодження ленти після запайки (№14)
-#define TAPE_COOL_OPEN_TIME      300   // відкривання циліндра для охолодження ленти
-#define TAPE_COOL_HOLD_TIME      500   // утримання в положенні охолодження
-#define TAPE_COOL_DELAY          100   // затримка після охолодження
+// === 6. ДОДАТКОВІ ТАЙМЕРИ ДЛЯ АЛГОРИТМУ ===
+// Таймери для циклів роботи
+#define PAINT_CYCLE_TOTAL_TIME   5000  // загальний час циклу розливу фарби
+#define CAP_CYCLE_TOTAL_TIME     3000  // загальний час циклу закривання кришок
+#define PACKAGING_CYCLE_TOTAL_TIME 15000 // загальний час циклу пакування
+
+// Таймери для датчиків
+#define SENSOR_DEBOUNCE_TIME     50    // час стабілізації датчика
+#define SENSOR_TIMEOUT_TIME      10000 // таймаут очікування спрацювання датчика
+
+// Таймери для конвеєра
+#define CONVEYOR_START_DELAY     200   // затримка запуску конвеєра
+#define CONVEYOR_STOP_DELAY      100   // затримка зупинки конвеєра
+#define CONVEYOR_OVERRUN_TIME    1000  // час додаткового руху після зупинки
+
+// Таймери для вакууму
+#define VACUUM_BUILD_TIME        1000  // час створення вакууму
+#define VACUUM_HOLD_TIME         2000  // час утримання вакууму
+#define VACUUM_RELEASE_TIME      500   // час скидання вакууму
+
+// Таймери для нагріву та охолодження
+#define HEATER_WARMUP_TIME       3000  // час прогріву нагрівача
+#define HEATER_ACTIVE_TIME       2000  // час активного нагріву
+#define COOLER_ACTIVE_TIME       3000  // час активного охолодження
+
+// === 7. КОНСТАНТИ ДЛЯ ЛОГІКИ РОБОТИ ===
+// Кількість баночок у збірці
+#define JARS_IN_SET             6     // кількість баночок у збірці
+#define SPICE_SETS_PER_PACKAGE  4     // кількість спайок на пакет
+
+// Режими роботи
+#define DISPENSE_MODE_ALL       1     // розлив усіх баночок
+#define DISPENSE_MODE_ONE       0     // розлив лише першої баночки
+
+// Стани циклів
+#define CYCLE_IDLE              0     // цикл неактивний
+#define CYCLE_ACTIVE            1     // цикл активний
+#define CYCLE_COMPLETED         2     // цикл завершено
+
+// === 8. МАКРОСИ ДЛЯ ЗРУЧНОСТІ ===
+// Макрос для перетворення секунд в мілісекунди
+#define SECONDS_TO_MS(seconds) ((seconds) * 1000)
+
+// Макрос для перетворення мілісекунд в секунди
+#define MS_TO_SECONDS(ms) ((ms) / 1000.0)
+
+// Макрос для перевірки таймауту
+#define IS_TIMEOUT(start_time, timeout) (millis() - (start_time) > (timeout))
+
+// Макрос для перевірки інтервалу
+#define IS_INTERVAL(start_time, interval) (millis() - (start_time) > (interval))
 
 #endif

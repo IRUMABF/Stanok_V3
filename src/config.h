@@ -29,11 +29,24 @@
 // -------------------------
 // ДАТЧИКИ ТА КНОПКИ
 // -------------------------
-#define SENSOR_POLL_INTERVAL      20    // мс, інтервал опитування датчиків
+#define SENSOR_POLL_INTERVAL      10    // мс, інтервал опитування датчиків
 
 #define JAR_CENTERING_MM 8.0 // На скільки мм зрушити баночку вперед після спрацювання датчика
 
 //#define DISPENSE_MODE 0 // 0 - розлив усіх, 1 - розлив лише першої з 6 у збірці
 #define JARS_IN_SET   6 // Кількість баночок у збірці
+
+// Рівень відладки:
+// 0 - нічого не виводити
+// 1 - базова інформація про стан роботи (машина, конвеєр, кроки, режим розливу)
+// 2 - повна детальна відладка (усі кнопки, датчики, клапани і т.д.)
+#ifndef DEBUG_LEVEL
+#define DEBUG_LEVEL 0
+#endif
+
+// Enable serial debug output: 1 = enabled, 0 = disabled
+#ifndef ENABLE_SERIAL_DEBUG
+#define ENABLE_SERIAL_DEBUG 0
+#endif
 
 #endif
