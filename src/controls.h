@@ -34,9 +34,10 @@ public:
         updateButton(singleblockButtonPin, singleBlockBtn);
 
         // Оновлення датчиків (INPUT_PULLUP: активний = LOW)
-        sensor1State = (digitalRead(sensor_1) == LOW);
-        sensor2State = (digitalRead(sensor_2) == LOW);
-        sensor3State = (digitalRead(sensor_3) == LOW);
+        // Інвертуємо значення датчиків — активний HIGH після інверсії
+        sensor1State = (digitalRead(sensor_1) == HIGH);
+        sensor2State = (digitalRead(sensor_2) == HIGH);
+        sensor3State = (digitalRead(sensor_3) == HIGH);
     }
 
     // --- Кнопки ---
