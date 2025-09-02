@@ -111,3 +111,84 @@ private:
     unsigned long lastStepTime = 0;
     bool stepState = false;
 };
+
+// Другий конвеєр (один двигун Z)
+class ConveyorZ {
+public:
+    ConveyorZ() {}
+
+    void begin() {
+        pinMode(Z_STEP_PIN, OUTPUT);
+        pinMode(Z_DIR_PIN, OUTPUT);
+        pinMode(Z_ENABLE_PIN, OUTPUT);
+
+        disable();
+        setDirection(MOTOR_Z_DIR);
+
+        running = false;
+        dociagActive = false;
+        dociagSteps = 0;
+        dociagDone = 0;
+        lastStepTime = 0;
+        stepState = false;
+    }
+
+    void enable() { digitalWrite(Z_ENABLE_PIN, LOW); }
+    void disable() { digitalWrite(Z_ENABLE_PIN, HIGH); }
+
+    void setDirection(bool zDir) { digitalWrite(Z_DIR_PIN, zDir); }
+
+    void start() {
+        enable();
+        running = true;
+        dociagActive = false;
+    }
+
+    void stop() {
+        running = false;
+        dociagActive = false;
+        disable();
+    }
+
+    void stopWithDociag(float mm) {
+        if (mm <= 0) { stop(); return; }
+        enable();
+        dociagSteps = (unsigned long)(mm * STEPS_PER_MM);
+        dociagDone = 0;
+        dociagActive = true;
+    }
+
+    void update() {
+        unsigned long now = micros();
+        if (!running && !dociagActive) return;
+
+        if (!stepState && (now - lastStepTime >= STEP_INTERVAL_MICROS)) {
+            digitalWrite(Z_STEP_PIN, HIGH);
+            stepState = true;
+            lastStepTime = now;
+        } else if (stepState && (now - lastStepTime >= PULSE_WIDTH_MICROS)) {
+            digitalWrite(Z_STEP_PIN, LOW);
+            stepState = false;
+            lastStepTime = now;
+
+            if (dociagActive) {
+                dociagDone++;
+                if (dociagDone >= dociagSteps) {
+                    dociagActive = false;
+                    running = false;
+                }
+            }
+        }
+    }
+
+    bool isRunning() const { return running || dociagActive; }
+    bool isDociagActive() const { return dociagActive; }
+
+private:
+    bool running = false;
+    bool dociagActive = false;
+    unsigned long dociagSteps = 0;
+    unsigned long dociagDone = 0;
+    unsigned long lastStepTime = 0;
+    bool stepState = false;
+};

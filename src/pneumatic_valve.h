@@ -52,6 +52,13 @@ class PneumaticValve {
       }
     }
 
+    // Змістити таймер авто-дії на паузу (для коректного пауза/резюме)
+    void shiftTimers(unsigned long deltaMs) {
+      if (_autoOff) {
+        _offTime += deltaMs;
+      }
+    }
+
     void toggle() {
       if (_state) off();
       else on();
@@ -59,6 +66,11 @@ class PneumaticValve {
 
     bool isOn() const {
       return _state;
+    }
+
+    // Чи активний таймер авто-дії (onFor/offFor ще не завершився)
+    bool isTimerActive() const {
+      return _autoOff;
     }
 
     uint8_t getPin() const {

@@ -93,6 +93,54 @@
 #define CYCLE_ACTIVE            1     // цикл активний
 #define CYCLE_COMPLETED         2     // цикл завершено
 
+// === 7.1. МІЖКРОКОВІ ПАУЗИ (налаштування пауз між послідовними командами) ===
+// Всі значення в мілісекундах. Ці паузи виконуються ПІСЛЯ команди і ПЕРЕД переходом до наступної.
+// Налаштовуються тут для зручності, без використання delay(), щоб вся система продовжувала оновлення.
+
+// 0. Видача спайок
+#define STEP_PAUSE_SPICE_OUT_MS                 5000
+
+// 1-4. Розлив фарби (послідовність кроків 1..4)
+#define STEP_PAUSE_PAINT_VALVE_OPEN_MS          5000
+#define STEP_PAUSE_PAINT_PISTON_INTAKE_MS       5000
+#define STEP_PAUSE_PAINT_VALVE_CLOSE_MS         5000
+#define STEP_PAUSE_PAINT_PISTON_DISPENSE_MS     5000
+
+
+// 5-6. Закривання кришок
+#define STEP_PAUSE_CAP_SCREW_MS                 5000
+#define STEP_PAUSE_CAP_CLOSE_MS                 5000
+
+// 7. Зсування спайки
+#define STEP_PAUSE_SPICE_SHIFT_MS               5000
+
+// 8-14. Рух платформи / пакетування – підготовчі етапи
+#define STEP_PAUSE_PLATFORM_HOME_MS             5000
+#define STEP_PAUSE_PLATFORM_DOWN_MS             5000
+#define STEP_PAUSE_VACUUM_ON_MS                 5000
+#define STEP_PAUSE_PLATFORM_UP_MS               5000
+#define STEP_PAUSE_PLATFORM_MOVE_WITH_PACKET_MS 5000
+#define STEP_PAUSE_PLATFORM_DOWN_OVER_PACKET_MS 5000
+#define STEP_PAUSE_PLATFORM_UP_OPEN_PACKET_MS   5000
+
+// 15-23. Запихання спайок та запайка
+#define STEP_PAUSE_PUSH_SPICE_IN_PACKET_MS      5000
+#define STEP_PAUSE_HOLDER_EXTEND_MS             5000
+#define STEP_PAUSE_NOZZLE_BACK_MS               5000
+#define STEP_PAUSE_VACUUM_SEAL_MS               5000
+#define STEP_PAUSE_SEALER_DOWN_MS               5000
+#define STEP_PAUSE_HEATER_ON_MS                 5000
+#define STEP_PAUSE_VACUUM_OFF_MS                5000
+#define STEP_PAUSE_SEALER_UP_MS                 5000
+#define STEP_PAUSE_COOLER_ON_MS                 5000
+#define STEP_PAUSE_HOLDER_UP_MS                 5000
+#define STEP_PAUSE_NOZZLE_FORWARD_MS            5000
+#define STEP_PAUSE_PUSHER_HOME_MS               5000
+
+// 27-28. Видача готової продукції
+#define STEP_PAUSE_PLATFORM_RETURN_HOME_MS      5000
+#define STEP_PAUSE_DROP_PACKET_MS               5000
+
 // === 8. МАКРОСИ ДЛЯ ЗРУЧНОСТІ ===
 // Макрос для перетворення секунд в мілісекунди
 #define SECONDS_TO_MS(seconds) ((seconds) * 1000)

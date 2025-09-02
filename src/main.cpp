@@ -35,7 +35,8 @@ PneumaticValve valve12(PNEUMATIC_12_PIN);
 PneumaticValve valve13(PNEUMATIC_13_PIN);
 PneumaticValve valve14(PNEUMATIC_14_PIN);
 Controls controls;
-Conveyor conveyor;
+Conveyor conveyor;      // Основний конвеєр (X+Y)
+ConveyorZ conveyorZ;    // Другий конвеєр (Z)
 
 // --- Прототипи команд ---
 // 1. Видача спайок
@@ -122,6 +123,60 @@ bool singleBlockMode = false;
 uint8_t currentStep = 0;
 bool dispenseMode = false; // режим розливу (true - всі, false - лише перша)
 bool machinePaused = false; // true — все стоїть, false — все працює
+unsigned long pauseStartTime = 0; // момент старту паузи
+
+// Неблокуюча пауза між кроками (після виконання команди перед переходом до наступної)
+static bool interStepDelayActive = false;
+static unsigned long interStepDelayEnd = 0;
+static uint8_t interStepWaitingForStep = 255; // номер кроку, після якого чекаємо паузу
+static bool interStepWaitMsgPrinted = false;  // чи виведено повідомлення про очікування
+static bool singleStepWaitMsgPrinted = false; // чи виведено повідомлення про очікування кнопки START
+static uint8_t singleStepWaitStep = 255;      // крок, для якого показано повідомлення очікування
+
+// Таблиця затримок між кроками (мс). За замовчуванням 0. Налаштуйте за потреби.
+static const unsigned long stepPauseMs[] = {
+  /* 0  commandSpiceOut                  */ STEP_PAUSE_SPICE_OUT_MS,
+  /* 1  commandPaintValveOpen            */ STEP_PAUSE_PAINT_VALVE_OPEN_MS,
+  /* 2  commandPaintPistonIntake         */ STEP_PAUSE_PAINT_PISTON_INTAKE_MS,
+  /* 3  commandPaintValveClose           */ STEP_PAUSE_PAINT_VALVE_CLOSE_MS,
+  /* 4  commandPaintPistonDispense       */ STEP_PAUSE_PAINT_PISTON_DISPENSE_MS,
+  /* 5  commandCapScrew                  */ STEP_PAUSE_CAP_SCREW_MS,
+  /* 6  commandCapClose                  */ STEP_PAUSE_CAP_CLOSE_MS,
+  /* 7  commandSpiceShift                */ STEP_PAUSE_SPICE_SHIFT_MS,
+  /* 8  commandPlatformHome              */ STEP_PAUSE_PLATFORM_HOME_MS,
+  /* 9  commandPlatformDown              */ STEP_PAUSE_PLATFORM_DOWN_MS,
+  /* 10 commandVacuumOn                  */ STEP_PAUSE_VACUUM_ON_MS,
+  /* 11 commandPlatformUp                */ STEP_PAUSE_PLATFORM_UP_MS,
+  /* 12 commandPlatformMoveWithPacket    */ STEP_PAUSE_PLATFORM_MOVE_WITH_PACKET_MS,
+  /* 13 commandPlatformDownOverPacket    */ STEP_PAUSE_PLATFORM_DOWN_OVER_PACKET_MS,
+  /* 14 commandPlatformUpOpenPacket      */ STEP_PAUSE_PLATFORM_UP_OPEN_PACKET_MS,
+  /* 15 commandPushSpiceInPacket         */ STEP_PAUSE_PUSH_SPICE_IN_PACKET_MS,
+  /* 16 commandHolderExtend              */ STEP_PAUSE_HOLDER_EXTEND_MS,
+  /* 17 commandNozzleBack                */ STEP_PAUSE_NOZZLE_BACK_MS,
+  /* 18 commandVacuumSeal                */ STEP_PAUSE_VACUUM_SEAL_MS,
+  /* 19 commandSealerDown                */ STEP_PAUSE_SEALER_DOWN_MS,
+  /* 20 commandHeaterOn                  */ STEP_PAUSE_HEATER_ON_MS,
+  /* 21 commandVacuumOff                 */ STEP_PAUSE_VACUUM_OFF_MS,
+  /* 22 commandSealerUp                  */ STEP_PAUSE_SEALER_UP_MS,
+  /* 23 commandCoolerOn                  */ STEP_PAUSE_COOLER_ON_MS,
+  /* 24 commandHolderUp                  */ STEP_PAUSE_HOLDER_UP_MS,
+  /* 25 commandNozzleForward             */ STEP_PAUSE_NOZZLE_FORWARD_MS,
+  /* 26 commandPusherHome                */ STEP_PAUSE_PUSHER_HOME_MS,
+  /* 27 commandPlatformReturnHome        */ STEP_PAUSE_PLATFORM_RETURN_HOME_MS,
+  /* 28 commandDropPacket                */ STEP_PAUSE_DROP_PACKET_MS
+};
+
+static inline unsigned long getInterStepDelayMs(uint8_t step) {
+    if (step < (sizeof(stepPauseMs) / sizeof(stepPauseMs[0]))) return stepPauseMs[step];
+    return 0;
+}
+
+static inline void startInterStepDelay(uint8_t step) {
+    interStepDelayActive = true;
+    interStepDelayEnd = millis() + getInterStepDelayMs(step);
+    interStepWaitingForStep = step;
+    interStepWaitMsgPrinted = false;
+}
 
 // Змінні для логіки роботи згідно алгоритму
 uint8_t jarCounter = 0;           // Лічильник баночок (0-5)
@@ -174,20 +229,21 @@ void setup() {
   ControlsConfig cfg; // за замовчуванням: кнопки моментні, датчики без інверсії
   controls.begin(cfg);
   conveyor.begin();
+  conveyorZ.begin();
   
   // Sensor testing
-  Serial.println("Testing sensors...");
+/* Serial.println("Testing sensors...");
   SensorUtils::testAllSensors(
     []() -> bool { return controls.isSensor1Active(); },
     []() -> bool { return controls.isSensor2Active(); },
     []() -> bool { return controls.isSensor3Active(); }
   );
-  
+  */
   // Initial valve positions
   //valve1.on();
   //valve3.on();
   
-  Serial.println("=== SETUP COMPLETED ===");
+//  Serial.println("=== SETUP COMPLETED ===");
   Serial.println("System ready for operation!");
   Serial.println("=====================================");
 }
@@ -212,6 +268,7 @@ void loop() {
     valve13.update();
     valve14.update();
     conveyor.update();
+    conveyorZ.update();
     // Отримуємо стан датчиків (через клас Controls)
     bool sensor1 = controls.isSensor1Active();
     bool sensor2 = controls.isSensor2Active();
@@ -267,18 +324,16 @@ void loop() {
         // --- START Button ---
     if (startBtn) {
         if (singleBlockMode) {
-            // In single block mode - execute next command
-            if (currentStep < machineProgramLength) {
+            // У режимі одиночного кроку: виконуємо наступну команду лише якщо пауза не активна
+            if (!interStepDelayActive && currentStep < machineProgramLength) {
                 Serial.println("=== START (SINGLE STEP) ===");
                 Serial.print("Next step: ");
                 Serial.println(currentStep);
-                
-                // Execute current command
+
                 machineProgram[currentStep]();
-                
-                // Move to next step
+                startInterStepDelay(currentStep);
                 currentStep++;
-                
+
                 if (currentStep >= machineProgramLength) {
                     Serial.println("=== ALL STEPS COMPLETED ===");
                     singleBlockMode = false;
@@ -289,62 +344,75 @@ void loop() {
                 }
             }
         } else {
-            // Normal mode - start machine
-            machinePaused = false;
-            conveyor.start();
-            machineRunning = true;
-            
-            // Reset all counters and states
-            jarCounter = 0;
-            spiceSetCounter = 0;
-            waitingForSensor1 = false;
-            waitingForSensor2 = false;
-            paintCycleActive = false;
-            capCycleActive = false;
-            packagingCycleActive = false;
-            currentStep = 0;
-            
-            // Reset all timers
-            sensor1StartTime = 0;
-            sensor2StartTime = 0;
-            paintCycleStartTime = 0;
-            capCycleStartTime = 0;
-            packagingCycleStartTime = 0;
-            
-            Serial.println("=== START PRESSED ===");
-            Serial.println("Machine started - OPERATION mode");
-            Serial.println("Conveyor enabled and started");
-            Serial.println("All counters and states reset");
+            // Якщо пауза активна — резюме без скидання станів і таймерів
+            if (machinePaused) {
+                unsigned long delta = millis() - pauseStartTime;
+                machinePaused = false;
+                machineRunning = true;
+                conveyor.start();
+                conveyorZ.start();
+
+                // Зсунути таймери клапанів
+                valve1.shiftTimers(delta);  valve2.shiftTimers(delta);  valve3.shiftTimers(delta);
+                valve4.shiftTimers(delta);  valve5.shiftTimers(delta);  valve6.shiftTimers(delta);
+                valve7.shiftTimers(delta);  valve8.shiftTimers(delta);  valve9.shiftTimers(delta);
+                valve10.shiftTimers(delta); valve11.shiftTimers(delta); valve12.shiftTimers(delta);
+                valve13.shiftTimers(delta); valve14.shiftTimers(delta);
+
+                // Зсунути алгоритмічні таймери, якщо вони були активні (ненульові)
+                if (sensor1StartTime)       sensor1StartTime       += delta;
+                if (sensor2StartTime)       sensor2StartTime       += delta;
+                if (paintCycleStartTime)    paintCycleStartTime    += delta;
+                if (capCycleStartTime)      capCycleStartTime      += delta;
+                if (packagingCycleStartTime)packagingCycleStartTime+= delta;
+                if (interStepDelayActive)   interStepDelayEnd      += delta;
+
+                Serial.println("=== RESUME ===");
+                Serial.println("Resuming machine without state reset");
+            } else {
+                // Перший старт — ініціалізація циклу
+                machinePaused = false;
+                conveyor.start();
+                conveyorZ.start();
+                machineRunning = true;
+
+                // Скидання лічильників та станів лише при першому старті
+                jarCounter = 0;
+                spiceSetCounter = 0;
+                waitingForSensor1 = false;
+                waitingForSensor2 = false;
+                paintCycleActive = false;
+                capCycleActive = false;
+                packagingCycleActive = false;
+                currentStep = 0;
+
+                // Скидання таймерів
+                sensor1StartTime = 0;
+                sensor2StartTime = 0;
+                paintCycleStartTime = 0;
+                capCycleStartTime = 0;
+                packagingCycleStartTime = 0;
+
+                Serial.println("=== START PRESSED ===");
+                Serial.println("Machine started - OPERATION mode");
+                Serial.println("Conveyors enabled and started");
+                Serial.println("Counters and states initialized");
+            }
         }
     }
     
     // --- STOP Button ---
     if (stopBtn) {
-        machinePaused = true;
-        conveyor.stop();
-        machineRunning = false;
-        
-        // Stop all active cycles
-        paintCycleActive = false;
-        capCycleActive = false;
-        packagingCycleActive = false;
-        
-        // Reset all sensor waiting states
-        waitingForSensor1 = false;
-        waitingForSensor2 = false;
-        
-        // Reset all timers
-        sensor1StartTime = 0;
-        sensor2StartTime = 0;
-        paintCycleStartTime = 0;
-        capCycleStartTime = 0;
-        packagingCycleStartTime = 0;
-        
-        Serial.println("=== STOP PRESSED ===");
-        Serial.println("Machine stopped - PAUSE mode");
-        Serial.println("Conveyor disabled and stopped");
-        Serial.println("All active cycles stopped");
-        Serial.println("All timers reset");
+        // Пауза: зупинити обидва конвеєри та запам'ятати момент паузи, без скидань станів
+        if (!machinePaused) {
+            machinePaused = true;
+            pauseStartTime = millis();
+            conveyor.stop();
+            conveyorZ.stop();
+            machineRunning = false;
+            Serial.println("=== STOP (PAUSE) PRESSED ===");
+            Serial.println("Machine paused. States preserved, timers will be shifted on resume");
+        }
     }
     
     // --- Single Block Button ---
@@ -666,26 +734,27 @@ void loop() {
     // --- COMMAND EXECUTION LOGIC ACCORDING TO ALGORITHM ---
     if (!machinePaused) {
         if (singleBlockMode) {
-            // Single block mode - execute one command at a time
-            if (currentStep < machineProgramLength) {
-                Serial.print("=== SINGLE STEP: Executing step ");
-                Serial.print(currentStep);
-                Serial.println(" ===");
-                
-                // Execute current command
-                machineProgram[currentStep]();
-                
-                // Move to next command
-                currentStep++;
-                
-                Serial.print("Step completed. Next step: ");
-                Serial.println(currentStep);
-                
-                // If reached end - disable single block mode
-                if (currentStep >= machineProgramLength) {
-                    Serial.println("=== SINGLE STEP: All steps completed ===");
-                    singleBlockMode = false;
-                    currentStep = 0;
+            // Режим одиночного кроку: виконання відбувається ТІЛЬКИ по натисканню START (у обробнику кнопки)
+            // Тут лише інформуємо про стан очікування/паузи
+            if (interStepDelayActive) {
+                if (!interStepWaitMsgPrinted) {
+                    interStepWaitMsgPrinted = true;
+                    Serial.print("Inter-step delay active (step ");
+                    Serial.print(interStepWaitingForStep);
+                    Serial.print(") remaining ~");
+                    Serial.print((long)(interStepDelayEnd - millis()));
+                    Serial.println(" ms");
+                }
+                if (millis() >= interStepDelayEnd) {
+                    interStepDelayActive = false;
+                    Serial.println("Inter-step delay finished");
+                }
+            } else {
+                if (!singleStepWaitMsgPrinted || singleStepWaitStep != currentStep) {
+                    singleStepWaitMsgPrinted = true;
+                    singleStepWaitStep = currentStep;
+                    Serial.print("SINGLE STEP: Waiting for START button. Step: ");
+                    Serial.println(currentStep);
                 }
             }
         } else if (machineRunning) {
@@ -718,12 +787,23 @@ void loop() {
             
             // Paint dispensing cycle (steps 1-4)
             if (paintCycleActive && currentStep >= 1 && currentStep <= 4) {
-                Serial.print("=== PAINT CYCLE: Step ");
-                Serial.print(currentStep);
-                Serial.println(" ===");
-                
-                machineProgram[currentStep]();
-                currentStep++;
+                if (!interStepDelayActive) {
+                    Serial.print("=== PAINT CYCLE: Step ");
+                    Serial.print(currentStep);
+                    Serial.println(" ===");
+                    machineProgram[currentStep]();
+                    startInterStepDelay(currentStep);
+                    currentStep++;
+                } else if (millis() >= interStepDelayEnd) {
+                    interStepDelayActive = false;
+                } else if (!interStepWaitMsgPrinted) {
+                    interStepWaitMsgPrinted = true;
+                    Serial.print("PAINT: inter-step delay active (step ");
+                    Serial.print(interStepWaitingForStep);
+                    Serial.print(") remaining ~");
+                    Serial.print((long)(interStepDelayEnd - millis()));
+                    Serial.println(" ms");
+                }
                 
                 // Check if paint cycle completed
                 if (currentStep > 4) {
@@ -764,12 +844,23 @@ void loop() {
             
             // Cap closing cycle (steps 5-6)
             else if (capCycleActive && currentStep >= 5 && currentStep <= 6) {
-                Serial.print("=== CAP CLOSING CYCLE: Step ");
-                Serial.print(currentStep);
-                Serial.println(" ===");
-                
-                machineProgram[currentStep]();
-                currentStep++;
+                if (!interStepDelayActive) {
+                    Serial.print("=== CAP CLOSING CYCLE: Step ");
+                    Serial.print(currentStep);
+                    Serial.println(" ===");
+                    machineProgram[currentStep]();
+                    startInterStepDelay(currentStep);
+                    currentStep++;
+                } else if (millis() >= interStepDelayEnd) {
+                    interStepDelayActive = false;
+                } else if (!interStepWaitMsgPrinted) {
+                    interStepWaitMsgPrinted = true;
+                    Serial.print("CAP: inter-step delay active (step ");
+                    Serial.print(interStepWaitingForStep);
+                    Serial.print(") remaining ~");
+                    Serial.print((long)(interStepDelayEnd - millis()));
+                    Serial.println(" ms");
+                }
                 
                 // Check if cap closing cycle completed
                 if (currentStep > 6) {
@@ -792,10 +883,13 @@ void loop() {
                             packagingCycleStartTime = millis();
                             currentStep = 7; // Start with spice shift command
                             Serial.println("Packaging cycle started (4 spice sets ready)");
+                            // Зупинити другий конвеєр на час пакування
+                            conveyorZ.stop();
                         } else {
                             // Otherwise just shift spice set and continue
                             commandSpiceShift();
                             conveyor.start();
+                            // Другий конвеєр може продовжувати рух незалежно
                             Serial.println("Spice set shifted, conveyor continues operation");
                         }
                     } else {
@@ -816,12 +910,23 @@ void loop() {
             
             // Packaging cycle (steps 7-29)
             else if (packagingCycleActive && currentStep >= 7 && currentStep < machineProgramLength) {
-                Serial.print("=== PACKAGING CYCLE: Step ");
-                Serial.print(currentStep);
-                Serial.println(" ===");
-                
-                machineProgram[currentStep]();
-                currentStep++;
+                if (!interStepDelayActive) {
+                    Serial.print("=== PACKAGING CYCLE: Step ");
+                    Serial.print(currentStep);
+                    Serial.println(" ===");
+                    machineProgram[currentStep]();
+                    startInterStepDelay(currentStep);
+                    currentStep++;
+                } else if (millis() >= interStepDelayEnd) {
+                    interStepDelayActive = false;
+                } else if (!interStepWaitMsgPrinted) {
+                    interStepWaitMsgPrinted = true;
+                    Serial.print("PACKAGING: inter-step delay active (step ");
+                    Serial.print(interStepWaitingForStep);
+                    Serial.print(") remaining ~");
+                    Serial.print((long)(interStepDelayEnd - millis()));
+                    Serial.println(" ms");
+                }
                 
                 // Check if packaging cycle completed
                 if (currentStep >= machineProgramLength) {
@@ -830,7 +935,8 @@ void loop() {
                     
                     Serial.println("Packaging cycle completed");
                     conveyor.start();
-                    Serial.println("Conveyor started for next set");
+                    conveyorZ.start();
+                    Serial.println("Conveyors started for next set");
                     
                     // Reset step for next cycle
                     currentStep = 0;
@@ -847,6 +953,9 @@ void loop() {
         }
     }
 }
+
+// Додаткова логіка керування другим конвеєром по датчику 3 (центрування спайки)
+// Обробляємо події фронту для sensor3 окремо на початку loop
 
 // --- Helper Functions ---
 
