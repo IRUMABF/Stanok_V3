@@ -299,8 +299,9 @@ void loop() {
         }
     }
     
-    // Sensor 2: Jar under cap closing press
-    if (sensor2 && !waitingForSensor2 && machineRunning && !machinePaused) {
+    // Sensor 2: Jar under cap closing press (trigger on rising edge to avoid retrigger while jar stays under press)
+    bool s2Rise = controls.sensor2RisingEdge();
+    if (s2Rise && !waitingForSensor2 && machineRunning && !machinePaused) {
         waitingForSensor2 = true;
         sensor2StartTime = millis();
         Serial.println("=== SENSOR 2: Jar under cap closing press ===");
@@ -792,8 +793,6 @@ void loop() {
                 capCycleActive = false;
                 conveyor.start();
             }
-            
-
             
             // Paint dispensing cycle (steps 1-4)
             if (paintCycleActive && currentStep >= 1 && currentStep <= 4) {
