@@ -6,7 +6,7 @@
 #include "pneumatic_valve.h"
 #include "controls.h"
 #include "conveyor.h"
-#include "sensor_utils.h"
+
 
 // Ensure DBG_PRINT macros exist (fallback)
 #ifndef DBG_PRINT
@@ -197,11 +197,15 @@ unsigned long packagingCycleStartTime = 0; // Час початку циклу �
 
 // Змінні для відладки
 unsigned long lastDebugTime = 0;
-const unsigned long DEBUG_INTERVAL = 4000; // 2 секунди між оновленнями відладки
+const unsigned long DEBUG_INTERVAL = 4000; // 4 секунди між оновленнями відладки
 
 void setup() {
   Serial.begin(9600);
   Serial.println("=== Machine Startup ===");
+  
+  // Heater initialization
+  pinMode(heaterPin, OUTPUT);
+  digitalWrite(heaterPin, LOW);
   
   // Sensor initialization (via Controls class)
   
@@ -523,7 +527,8 @@ void loop() {
         
         Serial.print("Spice set counter: ");
         Serial.print(spiceSetCounter);
-        Serial.println("/4");
+        Serial.print("/");
+        Serial.println(SPICE_SETS_PER_PACKAGE);
         
         Serial.print("Conveyor status: ");
         Serial.println(conveyor.isRunning() ? "RUNNING" : "STOPPED");
@@ -604,7 +609,8 @@ void loop() {
         
         Serial.print("Spice set counter: ");
         Serial.print(spiceSetCounter);
-        Serial.println("/4");
+        Serial.print("/");
+        Serial.println(SPICE_SETS_PER_PACKAGE);
         
         Serial.print("Conveyor status: ");
         Serial.println(conveyor.isRunning() ? "RUNNING" : "STOPPED");
@@ -742,7 +748,11 @@ void loop() {
                     Serial.print("Inter-step delay active (step ");
                     Serial.print(interStepWaitingForStep);
                     Serial.print(") remaining ~");
-                    Serial.print((long)(interStepDelayEnd - millis()));
+                    {
+                        long remain = (long)(interStepDelayEnd - millis());
+                        if (remain < 0) remain = 0;
+                        Serial.print(remain);
+                    }
                     Serial.println(" ms");
                 }
                 if (millis() >= interStepDelayEnd) {
@@ -877,12 +887,12 @@ void loop() {
                         Serial.print(spiceSetCounter);
                         Serial.println("/4");
                         
-                        // If collected 4 spice sets - start packaging cycle
-                        if (spiceSetCounter >= 4) {
+                        // If collected required spice sets - start packaging cycle
+                        if (spiceSetCounter >= SPICE_SETS_PER_PACKAGE) {
                             packagingCycleActive = true;
                             packagingCycleStartTime = millis();
                             currentStep = 7; // Start with spice shift command
-                            Serial.println("Packaging cycle started (4 spice sets ready)");
+                            Serial.println("Packaging cycle started (required spice sets ready)");
                             // Зупинити другий конвеєр на час пакування
                             conveyorZ.stop();
                         } else {
@@ -974,9 +984,7 @@ void executeStep(uint8_t step) {
     }
 }
 
-void toggleDispenseMode() {
-    // toggle dispense mode
-}
+// Removed unused toggleDispenseMode()
 
 void commandSpiceOut() {
     Serial.println("=== SPICE OUTPUT ===");
