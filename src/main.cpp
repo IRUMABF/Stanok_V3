@@ -402,6 +402,15 @@ void loop() {
                 Serial.println("Machine started - OPERATION mode");
                 Serial.println("Conveyors enabled and started");
                 Serial.println("Counters and states initialized");
+
+                // Виконати перший крок алгоритму перед очікуванням датчика:
+                // 1) Видача баночки (спайки)
+                Serial.println("Executing initial step 0: SPICE OUTPUT before waiting for sensor 1");
+                machineProgram[0]();
+                startInterStepDelay(0);
+                // Після виконання кроку 0 одразу готуємось до кроку 1 (розлив фарби),
+                // який стартує після спрацювання датчика 1 та дотягування конвеєра
+                currentStep = 1;
             }
         }
     }
