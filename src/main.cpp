@@ -988,19 +988,11 @@ void executeStep(uint8_t step) {
 
 void commandSpiceOut() {
     Serial.println("=== SPICE OUTPUT ===");
-    bool sensor3 = controls.isSensor3Active();
-    Serial.print("Sensor 3 (spice set ready): ");
-    Serial.println(sensor3 ? "ACTIVE" : "INACTIVE");
-    
-    if (sensor3) {
-        Serial.print("Activating spice output valve for ");
-        Serial.print(MS_TO_SECONDS(SPICE_OUT_HOLD_TIME));
-        Serial.println(" seconds");
-        valve1.onFor(SPICE_OUT_HOLD_TIME); // Distributor #1 - spice output
-        Serial.println("SPICE OUTPUT COMPLETED");
-    } else {
-        Serial.println("ERROR: Spice set not ready for output!");
-    }
+    Serial.print("Activating spice output valve for ");
+    Serial.print(MS_TO_SECONDS(SPICE_OUT_HOLD_TIME));
+    Serial.println(" seconds");
+    valve1.onFor(SPICE_OUT_HOLD_TIME); // Distributor #1 - spice output
+    Serial.println("SPICE OUTPUT COMPLETED");
 }
 
 void commandPaintValveOpen() {
