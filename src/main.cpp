@@ -125,6 +125,9 @@ bool dispenseMode = false; // режим розливу (true - всі, false - 
 bool machinePaused = false; // true — все стоїть, false — все працює
 unsigned long pauseStartTime = 0; // момент старту паузи
 
+// Ігнорування датчика 2 для наступних баночок після виконання циклу закривання
+static uint8_t sensor2IgnoreCount = 0; // скільки наступних спрацювань S2 ігноруємо
+
 // Неблокуюча пауза між кроками (після виконання команди перед переходом до наступної)
 static bool interStepDelayActive = false;
 static unsigned long interStepDelayEnd = 0;
@@ -302,6 +305,11 @@ void loop() {
     // Sensor 2: Jar under cap closing press (trigger on rising edge to avoid retrigger while jar stays under press)
     bool s2Rise = controls.sensor2RisingEdge();
     if (s2Rise && !waitingForSensor2 && machineRunning && !machinePaused) {
+        if (sensor2IgnoreCount > 0) {
+            sensor2IgnoreCount--;
+            Serial.print("S2: Ignored (remaining in set): ");
+            Serial.println(sensor2IgnoreCount);
+        } else {
         waitingForSensor2 = true;
         sensor2StartTime = millis();
         Serial.println("=== SENSOR 2: Jar under cap closing press ===");
@@ -315,6 +323,11 @@ void loop() {
         capCycleStartTime = millis();
         currentStep = 5; // Start with cap screwing command
         Serial.println("Cap closing cycle started");
+            // Після запуску циклу закривання ігноруємо наступні JARS_IN_SET-1 баночок
+            if (JARS_IN_SET > 1) {
+                sensor2IgnoreCount = JARS_IN_SET - 1; // наприклад, 5
+            }
+        }
     }
     
     // Sensor 3: Spice set ready for shifting (тільки після закривання кришок)
@@ -886,6 +899,9 @@ void loop() {
                     waitingForSensor2 = false;
                     
                     Serial.println("Cap closing cycle completed");
+                    // Гарантовано відпустити клапани 5 і 4 у правильному порядку
+                    if (valve5.isOn()) valve5.off();
+                    if (valve4.isOn()) valve4.off();
                     
                     // Після закривання кришок перевіряємо третій датчик
                     if (sensor3) {
