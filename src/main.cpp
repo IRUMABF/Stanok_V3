@@ -125,6 +125,7 @@ bool machinePaused = false; // true — все стоїть, false — все п
 
 // Змінні для логіки роботи згідно алгоритму
 uint8_t jarCounter = 0;           // Лічильник баночок (0-5)
+uint8_t jarsSeenInSet = 0;        // К-сть баночок з набору, що пройшли під датчиком 1 (0..6)
 uint8_t spiceSetCounter = 0;      // Лічильник спайок (0-3, потрібно 4)
 bool waitingForSensor1 = false;   // Очікування спрацювання датчика 1
 bool waitingForSensor2 = false;   // Очікування спрацювання датчика 2
@@ -170,7 +171,8 @@ void setup() {
   valve14.begin();
   
   // Controls and conveyor initialization
-  controls.begin();
+  ControlsConfig cfg; // за замовчуванням: кнопки моментні, датчики без інверсії
+  controls.begin(cfg);
   conveyor.begin();
   
   // Sensor testing
@@ -209,7 +211,7 @@ void loop() {
     valve12.update();
     valve13.update();
     valve14.update();
-
+    conveyor.update();
     // Отримуємо стан датчиків (через клас Controls)
     bool sensor1 = controls.isSensor1Active();
     bool sensor2 = controls.isSensor2Active();
@@ -217,20 +219,23 @@ void loop() {
 
     // --- SENSOR LOGIC ACCORDING TO ALGORITHM ---
     
-    // Sensor 1: Jar under paint dispensing nozzle
-    if (sensor1 && !waitingForSensor1 && machineRunning && !machinePaused) {
-        waitingForSensor1 = true;
-        sensor1StartTime = millis();
-        Serial.println("=== SENSOR 1: Jar under paint dispensing nozzle ===");
-        
-        // Stop conveyor with overrun for JAR_CENTERING_MM mm
-        conveyor.stopWithDociag(JAR_CENTERING_MM);
-        Serial.print("Conveyor stopping with overrun of ");
-        Serial.print(JAR_CENTERING_MM);
-        Serial.println(" mm for jar centering");
-        
-        // Paint cycle will start automatically after overrun completion
-        // in main command execution cycle
+    // Sensor 1: Jar under paint dispensing nozzle (edge-based, with mode logic)
+    static bool s1Prev = false;
+    bool s1Rise = (!s1Prev && sensor1);
+    s1Prev = sensor1;
+    if (s1Rise && !waitingForSensor1 && machineRunning && !machinePaused) {
+        jarsSeenInSet++;
+        if (!dispenseMode && jarsSeenInSet > 1) {
+            Serial.println("S1: ONE-JAR mode, ignoring jar > 1 in set");
+        } else {
+            waitingForSensor1 = true;
+            sensor1StartTime = millis();
+            Serial.println("=== SENSOR 1: Jar under paint dispensing nozzle ===");
+            conveyor.stopWithDociag(JAR_CENTERING_MM);
+            Serial.print("Conveyor stopping with overrun of ");
+            Serial.print(JAR_CENTERING_MM);
+            Serial.println(" mm for jar centering");
+        }
     }
     
     // Sensor 2: Jar under cap closing press
@@ -374,23 +379,24 @@ void loop() {
         }
     }
     
-    // --- Mode Change Button ---
-    if (modeBtn) {
+    // --- Mode switch handling ---
+    // If mode button configured as TOGGLE (two-position switch), map its level to dispenseMode
+    if (controls.isModeToggleConfigured()) {
+        bool desired = controls.modeToggle();
+        if (desired != dispenseMode) {
+            dispenseMode = desired;
+            Serial.println("=== DISPENSE MODE SWITCH CHANGED ===");
+            Serial.println(dispenseMode ? "Mode: ALL JARS" : "Mode: ONE JAR");
+            jarCounter = 0;
+            jarsSeenInSet = 0;
+        }
+    } else if (modeBtn) {
+        // Momentary button: toggle mode on press
         dispenseMode = !dispenseMode;
         Serial.println("=== DISPENSE MODE BUTTON PRESSED ===");
-        if (dispenseMode) {
-            Serial.println("Dispense mode: ALL JARS");
-            Serial.println("Conveyor will stop for each jar");
-            Serial.println("All 6 jars will be processed");
-        } else {
-            Serial.println("Dispense mode: ONE JAR");
-            Serial.println("Conveyor will stop only for first jar");
-            Serial.println("Only first jar of 6 will be processed");
-        }
-        
-        // Reset jar counter when changing mode
+        Serial.println(dispenseMode ? "Mode: ALL JARS" : "Mode: ONE JAR");
         jarCounter = 0;
-        Serial.println("Jar counter reset");
+        jarsSeenInSet = 0;
     }
     
     /*// --- Valve testing (demonstrating onFor/offFor) ---
@@ -628,7 +634,7 @@ void loop() {
     // --- Mechanism updates only if not paused ---
     if (!machinePaused) {
         // Update conveyor always (it controls its own state)
-        conveyor.update();
+        //conveyor.update();
         
         // Additional debugging for understanding state
         static unsigned long lastStatusCheck = 0;
@@ -724,25 +730,26 @@ void loop() {
                     paintCycleActive = false;
                     waitingForSensor1 = false;
                     jarCounter++;
-                    
                     Serial.print("Paint cycle completed. Jar ");
                     Serial.print(jarCounter);
                     Serial.println(" processed");
-                    
-                    // Check dispense mode
-                    if (dispenseMode || jarCounter == 0) {
-                        // "All jars" mode or first jar - continue
-                        if (jarCounter >= JARS_IN_SET - 1) {
-                            // All jars processed
+
+                    if (dispenseMode) {
+                        if (jarCounter >= JARS_IN_SET) {
                             jarCounter = 0;
+                            jarsSeenInSet = 0;
                             Serial.println("All jars in set processed");
                         }
                         conveyor.start();
                         Serial.println("Conveyor started for next jar");
                     } else {
-                        // "One jar" mode - stop
-                        Serial.println("'One jar' mode - waiting for next set");
-                        machineRunning = false;
+                        // ONE-JAR mode: only first jar dispensed, keep conveyor running continuously
+                        if (jarsSeenInSet >= JARS_IN_SET) {
+                            jarsSeenInSet = 0;
+                            jarCounter = 0;
+                            Serial.println("ONE-JAR mode: set completed");
+                        }
+                        conveyor.start();
                     }
                 }
                 

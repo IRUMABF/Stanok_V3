@@ -43,6 +43,7 @@ public:
 
     // Запустити постійний рух
     void start() {
+        enable();
         running = true;
         dociagActive = false;
     }
@@ -51,6 +52,7 @@ public:
     void stop() {
         running = false;
         dociagActive = false;
+        disable();
     }
 
     // Зупинка з дотягуванням (проїхати ще mm мм і зупинитись)
@@ -59,6 +61,8 @@ public:
             stop();
             return;
         }
+        // гарантуємо увімкнені драйвери для дотягування
+        enable();
         dociagSteps = (unsigned long)(mm * STEPS_PER_MM);
         dociagDone = 0;
         dociagActive = true;
