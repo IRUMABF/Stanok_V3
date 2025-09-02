@@ -20,10 +20,10 @@
 
 // === 3. ЦИКЛ ЗАКРИВАННЯ КРИШОК ===
 // Завертання кришок баночок (Valve 4)
-#define TWIST_CAP_HOLD_TIME      800   // утримання в положенні завертання
+#define TWIST_CAP_HOLD_TIME      1800  // утримання в положенні завертання (довше за Valve 5)
 
 // Закривання кришок баночок (Valve 5)
-#define CLOSE_CAP_HOLD_TIME      1000  // утримання в положенні закривання
+#define CLOSE_CAP_HOLD_TIME      1200  // утримання в положенні закривання (вимкнеться раніше за Valve 4)
 
 // === 4. ЗСУВАННЯ СПАЙКИ ДЛЯ ПАКУВАННЯ ===
 // Зсування спайки для пакування (Valve 6)
@@ -57,7 +57,7 @@
 // === 6. ДОДАТКОВІ ТАЙМЕРИ ДЛЯ АЛГОРИТМУ ===
 // Таймери для циклів роботи
 #define PAINT_CYCLE_TOTAL_TIME   5000  // загальний час циклу розливу фарби
-#define CAP_CYCLE_TOTAL_TIME     3000  // загальний час циклу закривання кришок
+#define CAP_CYCLE_TOTAL_TIME     4000  // загальний час циклу закривання кришок
 #define PACKAGING_CYCLE_TOTAL_TIME 15000 // загальний час циклу пакування
 
 // Таймери для датчиків
@@ -108,8 +108,8 @@
 
 
 // 5-6. Закривання кришок
-#define STEP_PAUSE_CAP_SCREW_MS                 5000
-#define STEP_PAUSE_CAP_CLOSE_MS                 5000
+#define STEP_PAUSE_CAP_SCREW_MS                 150   // коротка пауза перед запуском Valve 5 після Valve 4
+#define STEP_PAUSE_CAP_CLOSE_MS                 100   // мінімальна пауза після Valve 5
 
 // 7. Зсування спайки
 #define STEP_PAUSE_SPICE_SHIFT_MS               5000
