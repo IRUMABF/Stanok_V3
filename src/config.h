@@ -2,24 +2,47 @@
 #define CONFIG_H
 
 // -------------------------
-// ПАРАМЕТРИ КОНВЕЄРА
+// ПАРАМЕТРИ КОНВЕЄРА (XY) — основний конвеєр з ременем/шківом
 // -------------------------
-#define BELT_PITCH_MM         2.0     // Крок ременя GT2 (мм)
-#define PULLEY_TEETH          20      // Кількість зубів на шківі
-#define MICROSTEPS            8       // Дріблення кроку (1/8)
-#define MOTOR_STEPS_PER_REV   200     // Кроків на оберт двигуна (звичайно 200)
-// Швидкість конвеєра:
-#define BELT_SPEED_MM_PER_S   50.0    // Бажана швидкість у мм/с
+#define BELT_PITCH_MM_XY         2.0     // Крок ременя GT2 (мм)
+#define PULLEY_TEETH_XY          20      // Кількість зубів на шківі
+#define MICROSTEPS_XY            8       // Дріблення кроку (1/8)
+#define MOTOR_STEPS_PER_REV_XY   200     // Кроків на оберт двигуна (звичайно 200)
+// Швидкість конвеєра XY:
+#define BELT_SPEED_XY_MM_PER_S   50.0    // Бажана швидкість у мм/с
+
+// -------------------------
+// ПАРАМЕТРИ КОНВЕЄРА (Z) — другий конвеєр з гладким валиком
+// -------------------------
+#define ROLLER_DIAMETER_Z_MM     40.0    // Діаметр валика Z (мм)
+#define MICROSTEPS_Z             8       // Дріблення кроку (1/8)
+#define MOTOR_STEPS_PER_REV_Z    200     // Кроків на оберт двигуна (звичайно 200)
+// Швидкість конвеєра Z:
+#define BELT_SPEED_Z_MM_PER_S    100.0    // Бажана швидкість у мм/с для Z
 
 // -------------------------
 // ОБЧИСЛЕННЯ КІНЕМАТИКИ
 // -------------------------
-// Кроків на мм руху
-#define STEPS_PER_MM ((MOTOR_STEPS_PER_REV * MICROSTEPS) / (BELT_PITCH_MM * PULLEY_TEETH))
-// Загальна кількість кроків на секунду
-#define STEPS_PER_SECOND (STEPS_PER_MM * BELT_SPEED_MM_PER_S)
-// Інтервал між кроками в мікросекундах
-#define STEP_INTERVAL_MICROS (1000000.0 / STEPS_PER_SECOND)
+// Константа PI (Arduino може не мати M_PI)
+#ifndef CFG_PI
+#define CFG_PI 3.14159265358979323846
+#endif
+
+// Кроків на мм руху (XY): ремінь/шків
+#define STEPS_PER_MM_XY ((MOTOR_STEPS_PER_REV_XY * MICROSTEPS_XY) / (BELT_PITCH_MM_XY * PULLEY_TEETH_XY))
+// Загальна кількість кроків на секунду (XY)
+#define STEPS_PER_SECOND_XY (STEPS_PER_MM_XY * BELT_SPEED_XY_MM_PER_S)
+// Інтервал між кроками в мікросекундах (XY)
+#define STEP_INTERVAL_XY_MICROS (1000000.0 / STEPS_PER_SECOND_XY)
+
+// Довжина кола валика Z
+#define ROLLER_CIRCUMFERENCE_Z_MM (CFG_PI * ROLLER_DIAMETER_Z_MM)
+// Кроків на мм руху (Z): валик
+#define STEPS_PER_MM_Z ((MOTOR_STEPS_PER_REV_Z * MICROSTEPS_Z) / (ROLLER_CIRCUMFERENCE_Z_MM))
+// Загальна кількість кроків на секунду (Z)
+#define STEPS_PER_SECOND_Z (STEPS_PER_MM_Z * BELT_SPEED_Z_MM_PER_S)
+// Інтервал між кроками в мікросекундах (Z)
+#define STEP_INTERVAL_Z_MICROS (1000000.0 / STEPS_PER_SECOND_Z)
 // Тривалість STEP імпульсу
 #define PULSE_WIDTH_MICROS 10
 // Напрямки моторів

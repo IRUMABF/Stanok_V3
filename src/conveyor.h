@@ -63,7 +63,7 @@ public:
         }
         // гарантуємо увімкнені драйвери для дотягування
         enable();
-        dociagSteps = (unsigned long)(mm * STEPS_PER_MM);
+        dociagSteps = (unsigned long)(mm * STEPS_PER_MM_XY);
         dociagDone = 0;
         dociagActive = true;
     }
@@ -76,7 +76,7 @@ public:
         if (!running && !dociagActive) return;
 
         // Генеруємо імпульси з потрібною частотою
-        if (!stepState && (now - lastStepTime >= STEP_INTERVAL_MICROS)) {
+        if (!stepState && (now - lastStepTime >= STEP_INTERVAL_XY_MICROS)) {
             digitalWrite(X_STEP_PIN, HIGH);
             digitalWrite(Y_STEP_PIN, HIGH);
             stepState = true;
@@ -153,7 +153,7 @@ public:
     void stopWithDociag(float mm) {
         if (mm <= 0) { stop(); return; }
         enable();
-        dociagSteps = (unsigned long)(mm * STEPS_PER_MM);
+        dociagSteps = (unsigned long)(mm * STEPS_PER_MM_Z);
         dociagDone = 0;
         dociagActive = true;
     }
@@ -162,7 +162,7 @@ public:
         unsigned long now = micros();
         if (!running && !dociagActive) return;
 
-        if (!stepState && (now - lastStepTime >= STEP_INTERVAL_MICROS)) {
+        if (!stepState && (now - lastStepTime >= STEP_INTERVAL_Z_MICROS)) {
             digitalWrite(Z_STEP_PIN, HIGH);
             stepState = true;
             lastStepTime = now;
