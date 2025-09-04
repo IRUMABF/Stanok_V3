@@ -56,7 +56,7 @@
 // -------------------------
 #define SENSOR_POLL_INTERVAL      10    // мс, інтервал опитування датчиків
 
-#define JAR_CENTERING_MM 8.0 // На скільки мм зрушити баночку вперед після спрацювання датчика
+#define JAR_CENTERING_MM 8.0 // На скільки мм зрушити баночку вперед після спрацювання датчика //8мм
 
 // -------------------------
 // ДРУГИЙ КОНВЕЄР (Z) ПО ДАТЧИКУ 3
@@ -68,22 +68,22 @@
 
 // Зміщення (мм) для першої баночки після спрацювання датчика 3
 #ifndef CONVEYOR_Z_OFFSET_MM_FIRST
-#define CONVEYOR_Z_OFFSET_MM_FIRST 10.0
+#define CONVEYOR_Z_OFFSET_MM_FIRST 0.0
 #endif
 
 // Зміщення (мм) для другої баночки після спрацювання датчика 3
 #ifndef CONVEYOR_Z_OFFSET_MM_SECOND
-#define CONVEYOR_Z_OFFSET_MM_SECOND 15.0
+#define CONVEYOR_Z_OFFSET_MM_SECOND 10.0
 #endif
 
 // Мінімальний інтервал між обробками фронтів датчика 3 (мс) для захисту від дребезгу
 #ifndef CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS
-#define CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS 50
+#define CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS 100
 #endif
 
 // Час затримки після кожної зупинки другого конвеєра (мс)
 #ifndef CONVEYOR_Z_DWELL_MS
-#define CONVEYOR_Z_DWELL_MS 2000
+#define CONVEYOR_Z_DWELL_MS 5000
 #endif
 
 //#define DISPENSE_MODE 0 // 0 - розлив усіх, 1 - розлив лише першої з 6 у збірці

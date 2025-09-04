@@ -151,7 +151,7 @@ public:
     }
 
     void stopWithDociag(float mm) {
-        if (mm <= 0) { stop(); return; }
+        if (mm <= 0) { return; }
         enable();
         dociagSteps = (unsigned long)(mm * STEPS_PER_MM_Z);
         dociagDone = 0;
