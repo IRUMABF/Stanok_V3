@@ -81,6 +81,11 @@
 #define CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS 50
 #endif
 
+// Час затримки після кожної зупинки другого конвеєра (мс)
+#ifndef CONVEYOR_Z_DWELL_MS
+#define CONVEYOR_Z_DWELL_MS 2000
+#endif
+
 //#define DISPENSE_MODE 0 // 0 - розлив усіх, 1 - розлив лише першої з 6 у збірці
 // JARS_IN_SET визначено у pnevmatik_time.h як частина логіки алгоритму
 

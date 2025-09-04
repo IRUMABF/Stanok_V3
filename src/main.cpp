@@ -206,6 +206,9 @@ const unsigned long DEBUG_INTERVAL = 4000; // 4 секунди між оновл
 #if CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
 static bool conveyorZNextIsFirstOffset = true; // true: використовуємо перший зсув, false: другий
 static unsigned long lastSensor3HandledMs = 0; // Антидребезг/мін. інтервал між спрацюваннями
+static bool zDociagWasActivePrev = false;      // Для відстеження завершення дотягування
+static bool zDwellActive = false;              // Активна затримка після зупинки
+static unsigned long zDwellUntilMs = 0;        // Час завершення затримки
 #endif
 
 void setup() {
@@ -338,7 +341,8 @@ void loop() {
     
     // Sensor 3: керування другим конвеєром по фронту (чергування 10/15 мм)
 #if CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
-    {
+    // Обробка фронту S3 лише коли машина у режимі RUN і не на паузі
+    if (machineRunning && !machinePaused) {
         bool s3Rise = controls.sensor3RisingEdge();
         if (s3Rise) {
             unsigned long nowMs = millis();
@@ -350,11 +354,31 @@ void loop() {
                 Serial.println(" mm (alternating)");
                 conveyorZ.stopWithDociag(shiftMm);
                 conveyorZNextIsFirstOffset = !conveyorZNextIsFirstOffset; // чергуємо 10/15 мм
+                // Після запуску дотягування — скинути dwell, він активується після завершення
+                zDwellActive = false;
             }
         }
     }
-    // Після завершення дотягування — автозапуск (незалежно від станів першого конвеєра)
-    if (!conveyorZ.isRunning()) {
+    // Відстеження завершення дотягування й запуск затримки (dwell)
+    if (conveyorZ.isDociagActive()) {
+        zDociagWasActivePrev = true;
+    } else if (zDociagWasActivePrev) {
+        zDociagWasActivePrev = false;
+        if (CONVEYOR_Z_DWELL_MS > 0) {
+            zDwellActive = true;
+            zDwellUntilMs = millis() + CONVEYOR_Z_DWELL_MS;
+            Serial.print("Conveyor Z dwell started for ");
+            Serial.print(CONVEYOR_Z_DWELL_MS);
+            Serial.println(" ms");
+        }
+    }
+    // Якщо dwell активний — чекаємо
+    if (zDwellActive && (long)(millis() - zDwellUntilMs) >= 0) {
+        zDwellActive = false;
+        Serial.println("Conveyor Z dwell finished");
+    }
+    // Автостарт Z після дотягування і затримки лише коли RUN і не PAUSE
+    if (machineRunning && !machinePaused && !conveyorZ.isRunning() && !zDwellActive) {
         conveyorZ.start();
     }
 #endif
@@ -943,8 +967,6 @@ void loop() {
                             packagingCycleStartTime = millis();
                             currentStep = 7; // Start with spice shift command
                             Serial.println("Packaging cycle started (required spice sets ready)");
-                            // Зупинити другий конвеєр на час пакування
-                            conveyorZ.stop();
                         } else {
                             // Otherwise just shift spice set and continue
                             commandSpiceShift();
