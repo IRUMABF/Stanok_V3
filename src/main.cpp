@@ -356,17 +356,13 @@ void loop() {
             if (nowMs - lastSensor3HandledMs >= CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS) {
                 lastSensor3HandledMs = nowMs;
                 float shiftMm = conveyorZNextIsFirstOffset ? CONVEYOR_Z_OFFSET_MM_FIRST : CONVEYOR_Z_OFFSET_MM_SECOND;
-                conveyorZNextIsFirstOffset = !conveyorZNextIsFirstOffset; // чергуємо 10/15 мм
-                if (shiftMm > 0.0f) {
-                    Serial.print("S3 RISE: Conveyor Z stopWithDociag ");
-                    Serial.print(shiftMm);
-                    Serial.println(" mm (alternating)");
-                    conveyorZ.stopWithDociag(shiftMm);
-                    // Після запуску дотягування — скинути dwell, він активується після завершення
-                    zDwellActive = false;
-                } else {
-                    Serial.println("S3 RISE: shift=0 mm, skip Z stop");
-                }
+                conveyorZNextIsFirstOffset = !conveyorZNextIsFirstOffset; // чергуємо 1-2-1-2
+                Serial.print("S3 RISE: Conveyor Z stopWithDociag ");
+                Serial.print(shiftMm);
+                Serial.println(" mm (alternating)");
+                conveyorZ.stopWithDociag(shiftMm);
+                // Після запуску дотягування — скинути dwell, він активується після завершення
+                zDwellActive = false;
 
                 // Запуск етапів пакування: пункт 4 (SPICE SHIFT), далі пункт 6 і все після, ігноруємо пункт 5
                 if (!packagingCycleActive) {
