@@ -35,6 +35,29 @@
 
 #define JAR_CENTERING_MM 8.0 // На скільки мм зрушити баночку вперед після спрацювання датчика
 
+// -------------------------
+// ДРУГИЙ КОНВЕЄР (Z) ПО ДАТЧИКУ 3
+// -------------------------
+// Увімкнення логіки чергування зсувів по датчику 3 для другого конвеєра
+#ifndef CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
+#define CONVEYOR_Z_SENSOR3_SHIFT_ENABLED 1
+#endif
+
+// Зміщення (мм) для першої баночки після спрацювання датчика 3
+#ifndef CONVEYOR_Z_OFFSET_MM_FIRST
+#define CONVEYOR_Z_OFFSET_MM_FIRST 10.0
+#endif
+
+// Зміщення (мм) для другої баночки після спрацювання датчика 3
+#ifndef CONVEYOR_Z_OFFSET_MM_SECOND
+#define CONVEYOR_Z_OFFSET_MM_SECOND 15.0
+#endif
+
+// Мінімальний інтервал між обробками фронтів датчика 3 (мс) для захисту від дребезгу
+#ifndef CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS
+#define CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS 50
+#endif
+
 //#define DISPENSE_MODE 0 // 0 - розлив усіх, 1 - розлив лише першої з 6 у збірці
 // JARS_IN_SET визначено у pnevmatik_time.h як частина логіки алгоритму
 

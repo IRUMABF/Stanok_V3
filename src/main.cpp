@@ -202,6 +202,12 @@ unsigned long packagingCycleStartTime = 0; // Час початку циклу �
 unsigned long lastDebugTime = 0;
 const unsigned long DEBUG_INTERVAL = 4000; // 4 секунди між оновленнями відладки
 
+// --- Другий конвеєр: логіка чергування зсувів по датчику 3 ---
+#if CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
+static bool conveyorZNextIsFirstOffset = true; // true: використовуємо перший зсув, false: другий
+static unsigned long lastSensor3HandledMs = 0; // Антидребезг/мін. інтервал між спрацюваннями
+#endif
+
 void setup() {
   Serial.begin(9600);
   Serial.println("=== Machine Startup ===");
@@ -330,8 +336,28 @@ void loop() {
         }
     }
     
-    // Sensor 3: Spice set ready for shifting (тільки після закривання кришок)
-    // Цей датчик не обробляється окремо - він спрацьовує в циклі закривання кришок
+    // Sensor 3: керування другим конвеєром по фронту (чергування 10/15 мм)
+#if CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
+    if (machineRunning && !machinePaused && !packagingCycleActive) {
+        bool s3Rise = controls.sensor3RisingEdge();
+        if (s3Rise) {
+            unsigned long nowMs = millis();
+            if (nowMs - lastSensor3HandledMs >= CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS) {
+                lastSensor3HandledMs = nowMs;
+                float shiftMm = conveyorZNextIsFirstOffset ? CONVEYOR_Z_OFFSET_MM_FIRST : CONVEYOR_Z_OFFSET_MM_SECOND;
+                Serial.print("S3 RISE: Conveyor Z stopWithDociag ");
+                Serial.print(shiftMm);
+                Serial.println(" mm (alternating)");
+                conveyorZ.stopWithDociag(shiftMm);
+                conveyorZNextIsFirstOffset = !conveyorZNextIsFirstOffset; // чергуємо 10/15 мм
+            }
+        }
+    }
+    // Після завершення дотягування — автозапуск, якщо не пакування
+    if (machineRunning && !machinePaused && !packagingCycleActive && !conveyorZ.isRunning()) {
+        conveyorZ.start();
+    }
+#endif
 
     // Отримуємо стан кнопок
     bool startBtn = controls.startPressed();
