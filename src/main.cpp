@@ -338,7 +338,7 @@ void loop() {
     
     // Sensor 3: керування другим конвеєром по фронту (чергування 10/15 мм)
 #if CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
-    if (machineRunning && !machinePaused && !packagingCycleActive) {
+    {
         bool s3Rise = controls.sensor3RisingEdge();
         if (s3Rise) {
             unsigned long nowMs = millis();
@@ -353,8 +353,8 @@ void loop() {
             }
         }
     }
-    // Після завершення дотягування — автозапуск, якщо не пакування
-    if (machineRunning && !machinePaused && !packagingCycleActive && !conveyorZ.isRunning()) {
+    // Після завершення дотягування — автозапуск (незалежно від станів першого конвеєра)
+    if (!conveyorZ.isRunning()) {
         conveyorZ.start();
     }
 #endif
