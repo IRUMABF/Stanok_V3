@@ -190,6 +190,13 @@ bool waitingForSensor2 = false;   // Очікування спрацювання
 bool paintCycleActive = false;    // Активний цикл розливу фарби
 bool capCycleActive = false;      // Активний цикл закривання кришок
 bool packagingCycleActive = false; // Активний цикл пакування
+bool skipPlatformInPackaging = false; // Пропуск пункту 5 (платформа з присосками) в поточному циклі пакування
+
+// Паралельний цикл платформи (алгоритм пункт 5): кроки 8..14 незалежно від основного алгоритму
+bool platformCycleActive = false;           // Чи виконується зараз незалежний цикл платформи
+uint8_t platformStep = 8;                  // Поточний крок для платформи (8..14)
+bool platformDelayActive = false;          // Пауза між кроками платформи активна
+unsigned long platformDelayEnd = 0;        // Час завершення паузи між кроками платформи
 
 // Таймери для датчиків та циклів
 unsigned long sensor1StartTime = 0;    // Час початку очікування датчика 1
@@ -356,6 +363,15 @@ void loop() {
                 conveyorZNextIsFirstOffset = !conveyorZNextIsFirstOffset; // чергуємо 10/15 мм
                 // Після запуску дотягування — скинути dwell, він активується після завершення
                 zDwellActive = false;
+
+                // Запуск етапів пакування: пункт 4 (SPICE SHIFT), далі пункт 6 і все після, ігноруємо пункт 5
+                if (!packagingCycleActive) {
+                    packagingCycleActive = true;
+                    skipPlatformInPackaging = true; // пропустити кроки 8..14
+                    packagingCycleStartTime = millis();
+                    currentStep = 7; // почати з SPICE SHIFT
+                    Serial.println("Packaging sequence triggered by S3 (skip platform step 5)");
+                }
             }
         }
     }
@@ -434,6 +450,8 @@ void loop() {
                 if (capCycleStartTime)      capCycleStartTime      += delta;
                 if (packagingCycleStartTime)packagingCycleStartTime+= delta;
                 if (interStepDelayActive)   interStepDelayEnd      += delta;
+                // Зсунути таймер паралельної платформи
+                if (platformDelayActive)    platformDelayEnd       += delta;
 
                 Serial.println("=== RESUME ===");
                 Serial.println("Resuming machine without state reset");
@@ -453,6 +471,11 @@ void loop() {
                 capCycleActive = false;
                 packagingCycleActive = false;
                 currentStep = 0;
+
+                // Запустити незалежний цикл платформи (пункт 5) один раз на старті
+                platformCycleActive = true;
+                platformStep = 8;
+                platformDelayActive = false;
 
                 // Скидання таймерів
                 sensor1StartTime = 0;
@@ -843,6 +866,36 @@ void loop() {
         } else if (machineRunning) {
             // Automatic mode - execute commands according to active cycles
             
+            // --- ПАРАЛЕЛЬНИЙ ЦИКЛ ПЛАТФОРМИ (АЛГОРИТМ ПУНКТ 5, КРОКИ 8..14) ---
+            if (platformCycleActive) {
+                if (!platformDelayActive) {
+                    Serial.print("[PLATFORM] Step ");
+                    Serial.println(platformStep);
+                    // Виконати відповідну команду зі спільної програми
+                    if (platformStep >= 8 && platformStep <= 14) {
+                        machineProgram[platformStep]();
+                        // Використати ті ж паузи, що і основний цикл для консистентності
+                        unsigned long pauseMs = getInterStepDelayMs(platformStep);
+                        if (pauseMs > 0) {
+                            platformDelayActive = true;
+                            platformDelayEnd = millis() + pauseMs;
+                        }
+                        platformStep++;
+                        if (platformStep > 14) {
+                            platformCycleActive = false;
+                            platformDelayActive = false;
+                            Serial.println("[PLATFORM] Cycle completed");
+                        }
+                    } else {
+                        // Захист від виходу за межі
+                        platformCycleActive = false;
+                        platformDelayActive = false;
+                    }
+                } else if ((long)(millis() - platformDelayEnd) >= 0) {
+                    platformDelayActive = false;
+                }
+            }
+
             // Check if overrun completed for sensor 1
             if (waitingForSensor1 && !conveyor.isRunning() && !paintCycleActive) {
                 // Overrun completed, start paint cycle
@@ -996,8 +1049,15 @@ void loop() {
                     Serial.print("=== PACKAGING CYCLE: Step ");
                     Serial.print(currentStep);
                     Serial.println(" ===");
-                    machineProgram[currentStep]();
-                    startInterStepDelay(currentStep);
+                    // Якщо треба пропустити блок платформи (алгоритм пункт 5): кроки 8..14
+                    if (skipPlatformInPackaging && currentStep >= 8 && currentStep <= 14) {
+                        Serial.print("Skipping platform-related step ");
+                        Serial.println(currentStep);
+                        // Пропускаємо без виконання і без паузи
+                    } else {
+                        machineProgram[currentStep]();
+                        startInterStepDelay(currentStep);
+                    }
                     currentStep++;
                 } else if (millis() >= interStepDelayEnd) {
                     interStepDelayActive = false;
@@ -1013,6 +1073,7 @@ void loop() {
                 // Check if packaging cycle completed
                 if (currentStep >= machineProgramLength) {
                     packagingCycleActive = false;
+                    skipPlatformInPackaging = false;
                     spiceSetCounter = 0;
                     
                     Serial.println("Packaging cycle completed");
@@ -1022,6 +1083,11 @@ void loop() {
                     
                     // Reset step for next cycle
                     currentStep = 0;
+
+                    // Запустити незалежний цикл платформи (пункт 5) при повторенні циклу
+                    platformCycleActive = true;
+                    platformStep = 8;
+                    platformDelayActive = false;
                 }
                 
                 // Check for packaging cycle timeout
