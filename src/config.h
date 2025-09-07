@@ -78,12 +78,12 @@
 
 // Мінімальний інтервал між обробками фронтів датчика 3 (мс) для захисту від дребезгу
 #ifndef CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS
-#define CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS 100
+#define CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS 50
 #endif
 
 // Час затримки після кожної зупинки другого конвеєра (мс)
 #ifndef CONVEYOR_Z_DWELL_MS
-#define CONVEYOR_Z_DWELL_MS 5000
+#define CONVEYOR_Z_DWELL_MS 3000
 #endif
 
 //#define DISPENSE_MODE 0 // 0 - розлив усіх, 1 - розлив лише першої з 6 у збірці
