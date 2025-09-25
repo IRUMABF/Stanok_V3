@@ -106,8 +106,7 @@
         Serial.print("Sensor 2 (Cap press): ");
         Serial.println(sensor2 ? "ACTIVE - Jar under press" : "INACTIVE - No jar");
         
-        Serial.print("Sensor 3 (Spice shift): ");
-        Serial.println(sensor3 ? "ACTIVE - Spice set ready" : "INACTIVE - Not ready");
+        
         
         Serial.println("--- BUTTON STATUS ---");
         Serial.print("START button: ");
@@ -124,8 +123,7 @@
         Serial.println("--- VALVE STATUS ---");
         Serial.print("Valve 1: ");
         Serial.println(valve1.isOn() ? "ON" : "OFF");
-        Serial.print("Valve 2: ");
-        Serial.println(valve2.isOn() ? "ON" : "OFF");
+        
         Serial.print("Valve 3: ");
         Serial.println(valve3.isOn() ? "ON" : "OFF");
         

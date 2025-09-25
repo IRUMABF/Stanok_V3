@@ -19,27 +19,28 @@
 
 // Створення об'єктів для кожного клапана
 PneumaticValve valve1(PNEUMATIC_1_PIN);
-PneumaticValve valve2(PNEUMATIC_2_PIN);
 PneumaticValve valve3(PNEUMATIC_3_PIN);
 PneumaticValve valve4(PNEUMATIC_4_PIN);
 PneumaticValve valve5(PNEUMATIC_5_PIN); 
-PneumaticValve valve6(PNEUMATIC_6_PIN); 
 Controls controls;
 Conveyor conveyor;      // Основний конвеєр (X+Y)
-ConveyorZ conveyorZ;    // Другий конвеєр (Z)
 
 // --- Прототипи команд ---
 // 1. Видача спайок
 void commandSpiceOut();
 
-// 2. Видача фарби (розбито на підетапи для наладки)
-void commandPaintValveOpen();
-void commandPaintPistonIntake();
-void commandPaintValveClose();
-void commandPaintPistonDispense();
+// 2. Розлив фарби: один імпульс поршня на заданий час
+void commandPaintPulse();
 
-// 4. Зсування спайки в положення для пакування
-void commandSpiceShift();
+// --- Індикація режимів ---
+extern bool dispenseMode; // forward declaration
+static inline void updateModeLeds() {
+  // true => ALL JARS (режим 0), false => ONE JAR (режим 1)
+  digitalWrite(ledMode0Pin, dispenseMode ? HIGH : LOW);
+  digitalWrite(ledMode1Pin, dispenseMode ? LOW : HIGH);
+}
+
+// 4. Зсування спайки перенесено на інший контролер
 
 
 
@@ -55,7 +56,7 @@ static uint8_t sensor2IgnoreCount = 0; // скільки наступних сп
 // Змінні для логіки роботи згідно нового алгоритму
 uint8_t jarCounter = 0;           // Лічильник баночок (0-5)
 uint8_t jarsSeenInSet = 0;        // К-сть баночок з набору, що пройшли під датчиком 1 (0..6)
-uint8_t spiceSetCounter = 0;      // Лічильник спайок (0-3, потрібно 4)
+// uint8_t spiceSetCounter = 0;      // перенесено
 bool waitingForSensor1 = false;   // Очікування спрацювання датчика 1
 bool waitingForSensor2 = false;   // Очікування спрацювання датчика 2
 bool paintCycleActive = false;    // Активний цикл розливу фарби
@@ -80,34 +81,31 @@ unsigned long capCycleStartTime = 0;   // Час початку циклу за�
 unsigned long lastDebugTime = 0;
 const unsigned long DEBUG_INTERVAL = 4000; // 4 секунди між оновленнями відладки
 
-// --- Другий конвеєр: логіка чергування зсувів по датчику 3 ---
-#if CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
-static bool conveyorZNextIsFirstOffset = true; // true: використовуємо перший зсув, false: другий
-static unsigned long lastSensor3HandledMs = 0; // Антидребезг/мін. інтервал між спрацюваннями
-static bool zDociagWasActivePrev = false;      // Для відстеження завершення дотягування
-static bool zDwellActive = false;              // Активна затримка після зупинки
-static unsigned long zDwellUntilMs = 0;        // Час завершення затримки
-#endif
+ 
 
 void setup() {
   Serial.begin(9600);
   Serial.println("=== Machine Startup ===");
-
   // Pneumatic valve initialization
   valve1.begin();
-  valve2.begin();
   valve3.begin();
   valve4.begin();
   valve5.begin();
-  valve6.begin();
+  
   
   // Controls and conveyor initialization
   ControlsConfig cfg; // за замовчуванням: кнопки моментні, датчики без інверсії
   controls.begin(cfg);
   conveyor.begin();
-  conveyorZ.begin();
+  // LED pins for mode indication
+  pinMode(ledMode0Pin, OUTPUT);
+  pinMode(ledMode1Pin, OUTPUT);
+  updateModeLeds();
   
-//  Serial.println("=== SETUP COMPLETED ===");
+  // Initialize START_STOP_PIN output
+  pinMode(START_STOP_PIN, OUTPUT);
+  digitalWrite(START_STOP_PIN, LOW); // Initially machine is stopped
+  
   Serial.println("System ready for operation!");
   Serial.println("=====================================");
 }
@@ -118,17 +116,15 @@ void loop() {
     
     // Оновлення таймерів клапанів (ОБОВ'ЯЗКОВО!)
     valve1.update();
-    valve2.update();
     valve3.update();
     valve4.update();
     valve5.update();
-    valve6.update();
+    
     conveyor.update();
-    conveyorZ.update();
     // Отримуємо стан датчиків (через клас Controls)
     bool sensor1 = controls.isSensor1Active();
    // bool sensor2 = controls.isSensor2Active();
-    //bool sensor3 = controls.isSensor3Active();
+    
 
     // --- SENSOR LOGIC ACCORDING TO ALGORITHM ---
     
@@ -200,67 +196,7 @@ void loop() {
         }
     }
     
-    // Sensor 3: керування другим конвеєром по фронту (чергування зсувів)
-    // Згідно з новим алгоритмом: зсування спайки в положення для запихання в пакет (розподілювач №6)
-    // Даний розподілювач працює в парі з конвеєром Z та датчиком 3
-    // Як тільки спрацював датчик 3 конвеєр Z спиняється із дотяжкою на потрібну довжину
-#if CONVEYOR_Z_SENSOR3_SHIFT_ENABLED
-    // Обробка фронту S3 лише коли машина у режимі RUN і не на паузі
-    if (machineRunning && !machinePaused) {
-        bool s3Rise = controls.sensor3RisingEdge();
-        if (s3Rise) {
-            unsigned long nowMs = millis();
-            if (nowMs - lastSensor3HandledMs >= CONVEYOR_Z_MIN_TRIGGER_INTERVAL_MS) {
-                lastSensor3HandledMs = nowMs;
-                // Є дві величини дотягування в config.h це параметри CONVEYOR_Z_OFFSET_MM_FIRST та CONVEYOR_Z_OFFSET_MM_SECOND
-                // для компактнішого розположення було придумано складати їх в шахмотному порядку, тому і дві величини зсуву
-                // для 1 і 3 застосовуєм перший параметр а для 2 і 4 другий
-                float shiftMm = conveyorZNextIsFirstOffset ? CONVEYOR_Z_OFFSET_MM_FIRST : CONVEYOR_Z_OFFSET_MM_SECOND;
-                conveyorZNextIsFirstOffset = !conveyorZNextIsFirstOffset; // чергуємо 1-2-1-2
-                Serial.print("S3 RISE: Conveyor Z stopWithDociag ");
-                Serial.print(shiftMm);
-                Serial.println(" mm (alternating)");
-                conveyorZ.stopWithDociag(shiftMm);
-                // Після запуску дотягування — скинути dwell, він активується після завершення
-                zDwellActive = false;
-
-                // Згідно з новим алгоритмом: зсування спайки в положення для запихання в пакет (розподілювач №6)
-                // Як тільки закінчилась дотяжка конвеєр Z стоїть поки не завершить роботу пнематика
-                // тому включаєм на заданий час розподілювач №6 і по заершеню часу він вертається в початкове положення
-                Serial.println("Executing spice shift command (Distributor #6)");
-                commandSpiceShift();
-
-                // Запуск етапів пакування: пункт 4 (SPICE SHIFT)
-                if (spiceSetCounter >= SPICE_SETS_PER_PACKAGE) {
-                    spiceSetCounter = 0;
-                    Serial.println("Spice set counter reset after reaching required sets");
-                }
-            }
-        }
-    }
-    // Відстеження завершення дотягування й запуск затримки (dwell)
-    if (conveyorZ.isDociagActive()) {
-        zDociagWasActivePrev = true;
-    } else if (zDociagWasActivePrev) {
-        zDociagWasActivePrev = false;
-        if (CONVEYOR_Z_DWELL_MS > 0) {
-            zDwellActive = true;
-            zDwellUntilMs = millis() + CONVEYOR_Z_DWELL_MS;
-            Serial.print("Conveyor Z dwell started for ");
-            Serial.print(CONVEYOR_Z_DWELL_MS);
-            Serial.println(" ms");
-        }
-    }
-    // Якщо dwell активний — чекаємо
-    if (zDwellActive && (long)(millis() - zDwellUntilMs) >= 0) {
-        zDwellActive = false;
-        Serial.println("Conveyor Z dwell finished");
-    }
-    // Автостарт Z після дотягування і затримки лише коли RUN і не PAUSE
-    if (machineRunning && !machinePaused && !conveyorZ.isRunning() && !zDwellActive) {
-        conveyorZ.start();
-    }
-#endif
+    
 
     // Отримуємо стан кнопок
     bool startBtn = controls.startPressed();
@@ -276,11 +212,10 @@ void loop() {
                 machinePaused = false;
                 machineRunning = true;
                 conveyor.start();
-                conveyorZ.start();
 
                 // Зсунути таймери клапанів
-                valve1.shiftTimers(delta);  valve2.shiftTimers(delta);  valve3.shiftTimers(delta);
-                valve4.shiftTimers(delta);  valve5.shiftTimers(delta);  valve6.shiftTimers(delta);
+                valve1.shiftTimers(delta);  valve3.shiftTimers(delta);
+                valve4.shiftTimers(delta);  valve5.shiftTimers(delta);
 
                 // Зсунути алгоритмічні таймери, якщо вони були активні (ненульові)
                 if (sensor1StartTime)       sensor1StartTime       += delta;
@@ -292,16 +227,16 @@ void loop() {
 
                 Serial.println("=== RESUME ===");
                 Serial.println("Resuming machine without state reset");
+                digitalWrite(START_STOP_PIN, HIGH); // Set high on resume
             } else {
                 // Перший старт — ініціалізація циклу
                 machinePaused = false;
                 conveyor.start();
-                conveyorZ.start();
                 machineRunning = true;
 
                 // Скидання лічильників та станів лише при першому старті
                 jarCounter = 0;
-                spiceSetCounter = 0;
+                // spiceSetCounter = 0;
                 waitingForSensor1 = false;
                 waitingForSensor2 = false;
                 paintCycleActive = false;
@@ -317,9 +252,7 @@ void loop() {
                 capCycleStartTime = 0;
 
                 Serial.println("=== START PRESSED ===");
-                Serial.println("Machine started - OPERATION mode");
-                Serial.println("Conveyors enabled and started");
-                Serial.println("Counters and states initialized");
+                digitalWrite(START_STOP_PIN, HIGH); // Set high on start
 
                 // Згідно з новим алгоритмом: ПЕРШИЙ крок - видача спайок (розподілювач №1)
                 // Циліндр видвигається на 1с і вертається назад, до того як він почав рух запустився основний конвеєр
@@ -332,13 +265,12 @@ void loop() {
     
     // --- STOP Button ---
     if (stopBtn) {
-        // Пауза: зупинити обидва конвеєри та запам'ятати момент паузи, без скидань станів
         if (!machinePaused) {
             machinePaused = true;
             pauseStartTime = millis();
             conveyor.stop();
-            conveyorZ.stop();
             machineRunning = false;
+            digitalWrite(START_STOP_PIN, LOW); // Set low on stop
             Serial.println("=== STOP (PAUSE) PRESSED ===");
             Serial.println("Machine paused. States preserved, timers will be shifted on resume");
         }
@@ -354,6 +286,7 @@ void loop() {
             Serial.println(dispenseMode ? "Mode: ALL JARS" : "Mode: ONE JAR");
             jarCounter = 0;
             jarsSeenInSet = 0;
+            updateModeLeds();
         }
     } else if (modeBtn) {
         // Momentary button: toggle mode on press
@@ -362,6 +295,7 @@ void loop() {
         Serial.println(dispenseMode ? "Mode: ALL JARS" : "Mode: ONE JAR");
         jarCounter = 0;
         jarsSeenInSet = 0;
+        updateModeLeds();
     }
     
     // --- Mechanism updates only if not paused ---
@@ -419,7 +353,7 @@ void loop() {
                 conveyor.start();
             }
             
-            // Paint dispensing cycle (steps 0-3)
+            // Paint dispensing cycle (single step)
             if (paintCycleActive) {
                 if (!paintCycleDelayActive) {
                     Serial.print("=== PAINT CYCLE: Step ");
@@ -427,29 +361,10 @@ void loop() {
                     Serial.println(" ===");
                     
                     // Execute current step
-                    switch (paintCycleStep) {
-                        case 0:
-                            commandPaintValveOpen();
-                            break;
-                        case 1:
-                            commandPaintPistonIntake();
-                            break;
-                        case 2:
-                            commandPaintValveClose();
-                            break;
-                        case 3:
-                            commandPaintPistonDispense();
-                            break;
-                    }
+                    commandPaintPulse();
                     
-                    // Set delay for current step
+                    // No intra-step delay; command uses its own hold time
                     unsigned long delayMs = 0;
-                    switch (paintCycleStep) {
-                        case 0: delayMs = STEP_PAUSE_PAINT_VALVE_OPEN_MS; break;
-                        case 1: delayMs = STEP_PAUSE_PAINT_PISTON_INTAKE_MS; break;
-                        case 2: delayMs = STEP_PAUSE_PAINT_VALVE_CLOSE_MS; break;
-                        case 3: delayMs = STEP_PAUSE_PAINT_PISTON_DISPENSE_MS; break;
-                    }
                     
                     if (delayMs > 0) {
                         paintCycleDelayActive = true;
@@ -462,7 +377,7 @@ void loop() {
                 }
                 
                 // Check if paint cycle completed
-                if (paintCycleStep > 3) {
+                if (paintCycleStep > 0) {
                     paintCycleActive = false;
                     waitingForSensor1 = false;
                     jarCounter++;
@@ -591,51 +506,13 @@ void commandSpiceOut() {
     Serial.println("SPICE OUTPUT COMPLETED");
 }
 
-void commandPaintValveOpen() {
-    Serial.println("=== PAINT VALVE OPEN (Distributor #2) ===");
+void commandPaintPulse() {
+    Serial.println("=== PAINT PISTON PULSE (Distributor #3) ===");
     bool sensor1 = controls.isSensor1Active();
-    
     if (sensor1) {
-        valve2.on(); // Distributor #2 - reservoir valve open
-        Serial.println("PAINT VALVE OPENED");
+        valve3.onFor(PAINT_PISTON_HOLD_TIME);
+        Serial.println("PAINT PULSE COMMANDED");
     } else {
         Serial.println("ERROR: No jar under nozzle!");
     }
-}
-
-void commandPaintPistonIntake() {
-    Serial.println("=== PAINT PISTON INTAKE (Distributor #3) ===");
-    bool sensor1 = controls.isSensor1Active();
-    
-    if (sensor1) {
-        valve3.on(); // Distributor #3 - piston movement for paint intake
-        Serial.println("PAINT PISTON INTAKE COMPLETED");
-    } else {
-        Serial.println("ERROR: No jar under nozzle!");
-    }
-}
-
-void commandPaintValveClose() {
-    Serial.println("=== PAINT VALVE CLOSE (Distributor #2) ===");
-    valve2.off(); // Distributor #2 - reservoir valve close
-    Serial.println("PAINT VALVE CLOSED");
-}
-
-void commandPaintPistonDispense() {
-    Serial.println("=== PAINT PISTON DISPENSE (Distributor #3) ===");
-    bool sensor1 = controls.isSensor1Active();
-    
-    if (sensor1) {
-        valve3.off(); // Distributor #3 - piston movement for paint dispensing
-        Serial.println("PAINT PISTON DISPENSE COMPLETED");
-    } else {
-        Serial.println("ERROR: No jar under nozzle!");
-    }
-}
-
-
-void commandSpiceShift() {
-    Serial.println("=== SPICE SHIFT (Distributor #6) ===");
-    valve6.onFor(SPICE_SHIFT_HOLD_TIME); // Distributor #6 - spice shift for packaging
-    Serial.println("SPICE SHIFT COMPLETED");
 }
