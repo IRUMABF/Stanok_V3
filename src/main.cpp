@@ -106,6 +106,10 @@ void setup() {
   pinMode(START_STOP_PIN, OUTPUT);
   digitalWrite(START_STOP_PIN, LOW); // Initially machine is stopped
   
+  // Initialize START_CONVEYOR_PIN output
+  pinMode(START_CONVEYOR_PIN, OUTPUT);
+  digitalWrite(START_CONVEYOR_PIN, LOW); // Initially conveyor is stopped
+  
   Serial.println("System ready for operation!");
   Serial.println("=====================================");
 }

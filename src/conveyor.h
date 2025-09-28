@@ -27,6 +27,7 @@ public:
         dociagDone = 0;
         lastStepTime = 0;
         stepState = false;
+        updateConveyorSignal();
     }
 
     void enable() {
@@ -52,6 +53,7 @@ public:
         enable();
         running = true;
         dociagActive = false;
+        updateConveyorSignal();
     }
 
     // Зупинити негайно
@@ -59,6 +61,7 @@ public:
         running = false;
         dociagActive = false;
         disable();
+        updateConveyorSignal();
     }
 
     // Зупинка з дотягуванням (проїхати ще mm мм і зупинитись)
@@ -72,6 +75,7 @@ public:
         dociagSteps = (unsigned long)(mm * STEPS_PER_MM_XY);
         dociagDone = 0;
         dociagActive = true;
+        updateConveyorSignal();
     }
 
     // Основний update для генерації імпульсів
@@ -101,6 +105,7 @@ public:
                 if (dociagDone >= dociagSteps) {
                     dociagActive = false;
                     running = false;
+                    updateConveyorSignal();
                 }
             }
 
@@ -111,6 +116,11 @@ public:
     bool isDociagActive() const { return dociagActive; }
 
 private:
+    // Оновлення сигналу START_CONVEYOR_PIN
+    void updateConveyorSignal() {
+        bool conveyorRunning = running || dociagActive;
+        digitalWrite(START_CONVEYOR_PIN, conveyorRunning ? HIGH : LOW);
+    }
     bool running = false;
     bool dociagActive = false;
     unsigned long dociagSteps = 0;

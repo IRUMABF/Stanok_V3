@@ -9,7 +9,7 @@
 
 //сигнали для інщих контролерів
 #define START_STOP_PIN     11  // сигнал для старту/стопу іншого контролера 
-
+#define START_CONVEYOR_PIN     6 // сигнал коли конвеєр рухається
 // мотор конвеєра x 
 #define X_STEP_PIN         54
 #define X_DIR_PIN          55
