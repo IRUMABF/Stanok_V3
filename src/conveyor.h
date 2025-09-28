@@ -50,10 +50,12 @@ public:
 
     // Запустити постійний рух
     void start() {
+        Serial.println("Conveyor start() called");
         enable();
         running = true;
         dociagActive = false;
         updateConveyorSignal();
+        Serial.println("Conveyor started successfully");
     }
 
     // Зупинити негайно
@@ -70,12 +72,26 @@ public:
             stop();
             return;
         }
+        
+        // Додаткова діагностика
+        Serial.print("Conveyor stopWithDociag called with mm: ");
+        Serial.println(mm);
+        Serial.print("Current running state: ");
+        Serial.println(running);
+        Serial.print("Current dociagActive state: ");
+        Serial.println(dociagActive);
+        
         // гарантуємо увімкнені драйвери для дотягування
         enable();
         dociagSteps = (unsigned long)(mm * STEPS_PER_MM_XY);
         dociagDone = 0;
         dociagActive = true;
+        running = false; // Зупиняємо основний рух, але дозволяємо дотягування
         updateConveyorSignal();
+        
+        Serial.print("Dociag steps calculated: ");
+        Serial.println(dociagSteps);
+        Serial.println("Conveyor stopWithDociag completed");
     }
 
     // Основний update для генерації імпульсів
@@ -105,7 +121,9 @@ public:
                 if (dociagDone >= dociagSteps) {
                     dociagActive = false;
                     running = false;
+                    disable(); // Вимкнути драйвери після завершення дотягування
                     updateConveyorSignal();
+                    Serial.println("Conveyor dociag completed - fully stopped");
                 }
             }
 

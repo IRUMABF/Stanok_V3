@@ -18,7 +18,6 @@
 #endif
 
 // Створення об'єктів для кожного клапана
-PneumaticValve valve1(PNEUMATIC_1_PIN);
 PneumaticValve valve3(PNEUMATIC_3_PIN);
 PneumaticValve valve4(PNEUMATIC_4_PIN);
 PneumaticValve valve5(PNEUMATIC_5_PIN); 
@@ -26,10 +25,7 @@ Controls controls;
 Conveyor conveyor;      // Основний конвеєр (X+Y)
 
 // --- Прототипи команд ---
-// 1. Видача спайок
-void commandSpiceOut();
-
-// 2. Розлив фарби: один імпульс поршня на заданий час
+// Розлив фарби: один імпульс поршня на заданий час
 void commandPaintPulse();
 
 // --- Індикація режимів ---
@@ -40,7 +36,6 @@ static inline void updateModeLeds() {
   digitalWrite(ledMode1Pin, dispenseMode ? LOW : HIGH);
 }
 
-// 4. Зсування спайки перенесено на інший контролер
 
 
 
@@ -56,12 +51,10 @@ static uint8_t sensor2IgnoreCount = 0; // скільки наступних сп
 // Змінні для логіки роботи згідно нового алгоритму
 uint8_t jarCounter = 0;           // Лічильник баночок (0-5)
 uint8_t jarsSeenInSet = 0;        // К-сть баночок з набору, що пройшли під датчиком 1 (0..6)
-// uint8_t spiceSetCounter = 0;      // перенесено
 bool waitingForSensor1 = false;   // Очікування спрацювання датчика 1
 bool waitingForSensor2 = false;   // Очікування спрацювання датчика 2
 bool paintCycleActive = false;    // Активний цикл розливу фарби
 bool capCycleActive = false;      // Активний цикл закривання кришок
-bool spiceOutputDone = false;     // Чи виконано видачу спайок на початку циклу
 
 // State variables for each cycle
 uint8_t paintCycleStep = 0;       // Current step in paint cycle (0-3)
@@ -87,7 +80,6 @@ void setup() {
   Serial.begin(9600);
   Serial.println("=== Machine Startup ===");
   // Pneumatic valve initialization
-  valve1.begin();
   valve3.begin();
   valve4.begin();
   valve5.begin();
@@ -119,7 +111,6 @@ void loop() {
     controls.update();
     
     // Оновлення таймерів клапанів (ОБОВ'ЯЗКОВО!)
-    valve1.update();
     valve3.update();
     valve4.update();
     valve5.update();
@@ -137,37 +128,46 @@ void loop() {
     static bool s1Prev = false;
     bool s1Rise = (!s1Prev && sensor1);
     s1Prev = sensor1;
-    if (s1Rise && !waitingForSensor1 && machineRunning && !machinePaused && spiceOutputDone) {
-    jarsSeenInSet++;
-    if (!dispenseMode) {
-        // Режим однієї баночки:
-        // Розливаємо тільки першу баночку в наборі
-        if (jarsSeenInSet == 1) {
+    
+    // Додаткова діагностика для розуміння чому не спрацьовує зупинка
+    if (s1Rise) {
+        Serial.println("=== SENSOR 1 RISING EDGE DETECTED ===");
+        Serial.print("waitingForSensor1: "); Serial.println(waitingForSensor1);
+        Serial.print("machineRunning: "); Serial.println(machineRunning);
+        Serial.print("machinePaused: "); Serial.println(machinePaused);
+    }
+    
+    if (s1Rise && !waitingForSensor1 && machineRunning && !machinePaused) {
+        jarsSeenInSet++;
+        if (!dispenseMode) {
+            // Режим однієї баночки:
+            // Розливаємо тільки першу баночку в наборі
+            if (jarsSeenInSet == 1) {
+                waitingForSensor1 = true;
+                sensor1StartTime = millis();
+                Serial.println("=== SENSOR 1: First jar in set - starting paint cycle ===");
+                conveyor.stopWithDociag(JAR_CENTERING_MM);
+            } else {
+                Serial.print("S1: ONE-JAR mode, ignoring jar ");
+                Serial.print(jarsSeenInSet);
+                Serial.println(" in current set");
+                // Продовжуємо рух конвеєра для наступних баночок
+                conveyor.start();
+            }
+            
+            // Скидаємо лічильник коли досягли кінця набору
+            if (jarsSeenInSet >= JARS_IN_SET) {
+                jarsSeenInSet = 0;
+                Serial.println("ONE-JAR mode: Set completed, counter reset");
+            }
+        } else {
+            // Режим всіх баночок - старий код
             waitingForSensor1 = true;
             sensor1StartTime = millis();
-            Serial.println("=== SENSOR 1: First jar in set - starting paint cycle ===");
+            Serial.println("=== SENSOR 1: Jar under paint dispensing nozzle ===");
             conveyor.stopWithDociag(JAR_CENTERING_MM);
-        } else {
-            Serial.print("S1: ONE-JAR mode, ignoring jar ");
-            Serial.print(jarsSeenInSet);
-            Serial.println(" in current set");
-            // Продовжуємо рух конвеєра для наступних баночок
-            conveyor.start();
         }
-        
-        // Скидаємо лічильник коли досягли кінця набору
-        if (jarsSeenInSet >= JARS_IN_SET) {
-            jarsSeenInSet = 0;
-            Serial.println("ONE-JAR mode: Set completed, counter reset");
-        }
-    } else {
-        // Режим всіх баночок - старий код
-        waitingForSensor1 = true;
-        sensor1StartTime = millis();
-        Serial.println("=== SENSOR 1: Jar under paint dispensing nozzle ===");
-        conveyor.stopWithDociag(JAR_CENTERING_MM);
     }
-}
 
 // Sensor 2: Jar under cap closing press (trigger on rising edge to avoid retrigger while jar stays under press)
     // Згідно з новим алгоритмом: цикл закривання кришок відбувається по спрацюванню датчика 2
@@ -218,7 +218,7 @@ void loop() {
                 conveyor.start();
 
                 // Зсунути таймери клапанів
-                valve1.shiftTimers(delta);  valve3.shiftTimers(delta);
+                valve3.shiftTimers(delta);
                 valve4.shiftTimers(delta);  valve5.shiftTimers(delta);
 
                 // Зсунути алгоритмічні таймери, якщо вони були активні (ненульові)
@@ -237,17 +237,16 @@ void loop() {
                 machinePaused = false;
                 conveyor.start();
                 machineRunning = true;
+                Serial.println("Conveyor started after initial start button press");
 
                 // Скидання лічильників та станів лише при першому старті
                 jarCounter = 0;
-                // spiceSetCounter = 0;
                 waitingForSensor1 = false;
                 waitingForSensor2 = false;
                 paintCycleActive = false;
                 capCycleActive = false;
                 paintCycleStep = 0;
                 capCycleStep = 0;
-                spiceOutputDone = false;
 
                 // Скидання таймерів
                 sensor1StartTime = 0;
@@ -257,12 +256,6 @@ void loop() {
 
                 Serial.println("=== START PRESSED ===");
                 digitalWrite(START_STOP_PIN, HIGH); // Set high on start
-
-                // Згідно з новим алгоритмом: ПЕРШИЙ крок - видача спайок (розподілювач №1)
-                // Циліндр видвигається на 1с і вертається назад, до того як він почав рух запустився основний конвеєр
-                Serial.println("Executing initial step: SPICE OUTPUT (Distributor #1)");
-                commandSpiceOut();
-                spiceOutputDone = true;
             }
         }
     }
@@ -341,6 +334,15 @@ void loop() {
                 paintCycleStartTime = millis();
                 paintCycleStep = 0;
                 Serial.println("Overrun completed, paint cycle started");
+            }
+            
+            // Додаткова діагностика стану конвеєра
+            if (waitingForSensor1 && conveyor.isRunning()) {
+                static unsigned long lastConveyorStatus = 0;
+                if (millis() - lastConveyorStatus > 1000) { // Кожну секунду
+                    lastConveyorStatus = millis();
+                    Serial.println("Waiting for conveyor to stop after sensor 1 trigger...");
+                }
             }
             
             // Check for sensor timeouts
@@ -504,11 +506,6 @@ void loop() {
     }
 }
 
-void commandSpiceOut() {
-    Serial.println("=== SPICE OUTPUT (Distributor #1) ===");
-    valve1.onFor(SPICE_OUT_HOLD_TIME); // Distributor #1 - spice output
-    Serial.println("SPICE OUTPUT COMPLETED");
-}
 
 void commandPaintPulse() {
     Serial.println("=== PAINT PISTON PULSE (Distributor #3) ===");
